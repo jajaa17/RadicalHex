@@ -1,7 +1,7 @@
 {
   "name": "radicalhex",
   "productName": "RadicalHex",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Save editor for Pokémon Radical Red 4.1: boxes with sprites, add and edit Pokémon, bag, money, automatic backups.",
   "main": "main.js",
   "author": "jajaa17",

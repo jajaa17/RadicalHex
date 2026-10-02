@@ -100,15 +100,17 @@ window.RHDexView = function (ui) {
     const sv = ui.save();
     const dexState = sv && s.nat <= 1000 ? (C.dex.caught(sv, s.nat) ? 'Caught' : C.dex.seen(sv, s.nat) ? 'Seen' : 'Not seen') : null;
     const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, a)) : null));
+    const pic = sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144);
     return h('div', { class: 'dex-detail' },
       h('div', { class: 'dex-hero' },
-        sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144),
+        pic,
         h('div', { style: 'min-width:0;display:grid;gap:6px' },
           h('div', { class: 'note' }, `No. ${pad(s.nat)}`),
           h('h2', {}, name(id)),
           h('div', { class: 'row' }, s.t.map(typeBadge)),
           h('div', { class: 'row' },
             h('button', { type: 'button', class: 'btn small', 'aria-pressed': String(shiny), onclick: () => { shiny = !shiny; show(id); } }, shiny ? '★ Shiny' : '☆ Normal'),
+            ui.cryButton(id, pic),
             dexState ? h('span', { class: 'chip' }, 'Pokédex: ' + dexState) : null,
             where.length ? h('span', { class: 'chip accent-chip' }, `You have ${where.length}`) : own.families.has(root) ? h('span', { class: 'chip' }, 'You own this family') : null))),
       where.length ? h('p', { class: 'note' }, 'In your save: ' + [...new Set(where)].map(w => `${w}${where.filter(x => x === w).length > 1 ? ' ×' + where.filter(x => x === w).length : ''}`).join(', ')) : null,
