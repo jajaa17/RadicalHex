@@ -119,6 +119,10 @@
   document.addEventListener('scroll', e => { if (pop && !pop.contains(e.target)) closeList(); }, true);
   window.addEventListener('resize', closeList);
 
+  // Big sprites shrink on small windows (multiples of 24 px stay crisp).
+  const heroSize = () => (innerWidth < 1180 || innerHeight < 700 ? 96 : 144);
+  window.addEventListener('resize', () => { if (sv && $('#hero')) renderHero(); });
+
   // ── Status, dialogs ──
   function status(text, kind) { const e = $('#status'); e.textContent = text; e.className = kind || ''; }
   function modal(title, body, buttons) {
@@ -264,7 +268,17 @@
         h('span', { class: 'spacer' }),
         h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 22 boxes' }, 'Max IVs on everything')),
       grid,
+      box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
       h('p', { class: 'note' }, 'Drag a Pokémon onto another box slot to move or swap it. Click an empty box slot to add a new Pokémon.'));
+  }
+
+  function healParty() {
+    let healed = 0;
+    change('Healed the party', () => {
+      for (let i = 0; i < C.partyCount(sv); i++) if (C.heal(D, C.partyRef(sv, i))) healed++;
+      return healed > 0;
+    }, { full: true });
+    status(healed ? `Healed ${healed} Pokémon: full HP, no status conditions and full PP.` : 'Your party is already fully healed.', healed ? 'ok' : '');
   }
 
   // ── Party pane ──
@@ -278,14 +292,17 @@
       cards.push(h('button', { type: 'button', class: 'pcard' + (sel.party && sel.slot === s ? ' sel' : ''), onclick: () => select(true, 0, s) },
         sprite(sp, M.shiny(r), 96, M.isEgg(r)),
         h('span', { class: 'pcard-body' },
-          h('span', { class: 'pcard-head' }, h('strong', {}, M.nickname(r) || spName(sp)), M.shiny(r) ? h('span', { class: 'star' }, '★') : null, h('span', { class: 'note mono' }, 'Lv ' + C.levelOf(D, r))),
+          h('span', { class: 'pcard-head' }, h('strong', {}, M.nickname(r) || spName(sp)), M.shiny(r) ? h('span', { class: 'star' }, '★') : null,
+            C.partyStatus(r) ? h('span', { class: 'status-badge' + (C.partyStatus(r) === 'Fainted' ? ' fnt' : '') }, C.partyStatus(r)) : null,
+            h('span', { class: 'note mono' }, 'Lv ' + C.levelOf(D, r))),
           h('span', { class: 'note' }, `${spName(sp)} · ${C.NATURES[M.nature(r)]}`),
           h('span', { class: 'note' }, M.item(r) ? 'Holding ' + (D.items[M.item(r)] || '#' + M.item(r)) : 'No held item'),
           h('span', { class: 'hpbar', title: `HP ${hp}/${st[0]}` }, h('span', { class: pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low', style: `width:${pct}%` })),
           h('span', { class: 'pcard-moves' }, M.moves(r).map(m => h('span', {}, m ? D.moves[m] || '#' + m : '—'))))));
     }
     $('#pane-party').replaceChildren(
-      h('div', { class: 'section-title' }, `Party (${n}/6)`),
+      h('div', { class: 'row' }, h('div', { class: 'section-title' }, `Party (${n}/6)`), h('span', { class: 'grow' }),
+        h('button', { class: 'btn', type: 'button', disabled: !n, title: 'Restore HP, cure status conditions and refill PP for every party Pokémon', onclick: healParty }, 'Heal party')),
       h('div', { class: 'party-cards' }, cards),
       h('p', { class: 'note' }, 'Click a Pokémon to edit it. Party members are added and removed in the game; Pokémon you add with RadicalHex go into a box.'));
   }
@@ -311,7 +328,7 @@
     if (!el || !filled(r)) return;
     const sp = M.species(r), g = C.genderOf(D, r), lv = C.levelOf(D, r);
     el.replaceChildren(
-      sprite(sp, M.shiny(r), 144, M.isEgg(r)),
+      sprite(sp, M.shiny(r), heroSize(), M.isEgg(r)),
       h('div', { style: 'min-width:0' },
         h('h2', {}, M.nickname(r) || spName(sp)),
         h('div', { class: 'sub' }, `${spName(sp)}${D.species[sp] && D.species[sp].nat ? ' · No. ' + D.species[sp].nat : ''} · ${sel.party ? 'Party slot ' + (sel.slot + 1) : C.boxName(sv, sel.box) + ', slot ' + (sel.slot + 1)}`),
@@ -452,6 +469,10 @@
         const [b, s] = target;
         if (change(`Copied to ${C.boxName(sv, b)}`, () => C.copyToBox(D, r, C.boxRef(sv, b, s)))) select(false, b, s);
       } }, 'Copy to a box'));
+      const st = C.partyStatus(r);
+      row.append(h('button', { class: 'btn', type: 'button', title: 'Restore HP, cure status conditions and refill PP', onclick: () => {
+        if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true })) status(`${M.nickname(r)} is already fully healed.`);
+      } }, st ? `Heal (${st.toLowerCase()})` : 'Heal'));
     } else {
       row.append(h('button', { class: 'btn', type: 'button', disabled: !target, onclick: () => {
         const [b, s] = target;
@@ -483,7 +504,7 @@
     const pickBad = (e, msg) => { e.target.classList.add('bad'); status(msg, 'err'); };
     const sd = h('textarea', { id: 'add-sd', rows: 7, placeholder: 'Garchomp @ Choice Scarf\nLevel: 50\nJolly Nature\nEVs: 252 Atk / 4 SpD / 252 Spe\n- Earthquake\n- Outrage\n- Stone Edge\n- Fire Fang' }, d.text);
     return [
-      h('div', { class: 'hero' }, d.species ? sprite(d.species, d.shiny, 144) : h('span', { class: 'spr none', style: 'width:144px;height:144px;font-size:40px' }),
+      h('div', { class: 'hero' }, d.species ? sprite(d.species, d.shiny, heroSize()) : h('span', { class: 'spr none', style: `width:${heroSize()}px;height:${heroSize()}px;font-size:40px` }),
         h('div', {}, h('h2', {}, 'Add a Pokémon'), h('div', { class: 'sub' }, `${C.boxName(sv, sel.box)}, slot ${sel.slot + 1}`),
           h('p', { class: 'note', style: 'margin-top:6px' }, 'It will belong to you, met at Pallet Town, in the ball you choose.'))),
       h('details', { open: !!d.text }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Paste a Showdown set'),

@@ -17,14 +17,15 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 ## Features
 
 ### Boxes
-- All 22 boxes with normal and shiny sprites, a star for shinies, a mark for perfect IVs and a dot for held items
+- All 25 boxes (23–25 unlock in the game as your PC fills up) with normal and shiny sprites, a star for shinies, a mark for perfect IVs and a dot for held items
 - Add a new Pokémon to any empty slot: species, level, nature, gender, shiny, held item, Poké Ball, friendship, hidden ability, moves, IVs and EVs
 - Paste a Pokémon Showdown set to fill in a new Pokémon, or copy any Pokémon as a Showdown set
 - Drag to move or swap Pokémon, clone them, release them
 - Max IVs on every Pokémon in one click
 
 ### Party
-- Your six party Pokémon as cards with sprite, level, nature, held item, HP and moves
+- Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves
+- **Heal**: restore HP (fainted Pokémon included), cure poison, burn, sleep, freeze and paralysis, and refill PP, for one Pokémon or the whole party
 - Edit them like any other Pokémon, or copy them into a box
 
 ### Editing a Pokémon
@@ -67,6 +68,9 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - Only the newest save slot is edited, so the game's previous save stays as a fallback.
 - Undo (Ctrl+Z) for every edit, and a warning before closing with unsaved changes.
 - The Open dialog starts in the folder of the last save you opened.
+
+### Fits your screen
+- Works on anything from old 1024×768 monitors and scaled laptop screens to large displays. The layout adapts when the window is small or not maximized.
 
 ## Using it
 

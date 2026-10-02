@@ -1,5 +1,5 @@
 // RadicalHex desktop shell: windows, file dialogs, backups and safe writes.
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -22,14 +22,18 @@ let current = null; // { path, name }
 const SMOKE = process.argv.includes('--smoke-test'); // CI: load the window, check it, quit
 
 function createWindow() {
+  // Open at a size that fits the screen (old 1024x768 monitors and scaled laptop screens included).
+  const area = screen.getPrimaryDisplay().workAreaSize;
+  const width = Math.min(1360, Math.round(area.width * 0.94)), height = Math.min(880, Math.round(area.height * 0.94));
   win = new BrowserWindow({
-    width: 1360, height: 880, minWidth: 1060, minHeight: 680,
+    width, height, minWidth: Math.min(900, area.width), minHeight: Math.min(560, area.height),
     title: 'RadicalHex',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#141217' : '#f2f1f4',
     icon: path.join(__dirname, 'build', 'icon.png'),
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
+  if (area.width <= 1280 || area.height <= 768) win.maximize(); // small screens: use all of it
   win.loadFile(path.join(__dirname, 'src', 'index.html'));
   // Links open in the real browser; the app never navigates away.
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https:\/\//.test(url)) shell.openExternal(url); return { action: 'deny' }; });
