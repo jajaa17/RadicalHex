@@ -747,6 +747,8 @@
   }
 
   // ── Backups pane ──
+  let backupWhere = ''; // the backups folder, from the desktop app
+  if (host && host.backupDir) host.backupDir().then(d => { backupWhere = d; }).catch(() => {});
   async function renderBackups() {
     const pane = $('#pane-backups');
     if (!host) {
@@ -762,9 +764,10 @@
       h('div', { class: 'row' }, h('h3', {}, 'Backups'), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', onclick: async () => { try { await host.backupNow(sv.original); status('Backed up the file as it is on disk.', 'ok'); renderBackups(); } catch (e) { status(e.message, 'err'); } } }, 'Back up now'),
         h('button', { class: 'btn', type: 'button', onclick: () => host.showBackups() }, 'Open backups folder')),
-      h('p', { class: 'note' }, 'Stored in Documents\\RadicalHex\\Backups. A new backup is made when you open a save and right before every Save, unless the file has not changed since the last backup.'),
+      h('p', { class: 'note' }, `Stored in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}. A new backup is made when you open a save and right before every Save, unless the file has not changed since the last backup.`
+        + (list.some(b => b.old) ? ' Backups marked "older" are from earlier versions, which kept them in Documents\\RadicalHex\\Backups.' : '')),
       list.length ? h('table', { class: 'backups' }, h('thead', {}, h('tr', {}, h('th', {}, 'File'), h('th', {}, 'Made'), h('th', {}, 'Size'), h('th', {}))),
-        h('tbody', {}, list.map(b => h('tr', {}, h('td', {}, b.name), h('td', { class: 'mono' }, new Date(b.time).toLocaleString()), h('td', { class: 'mono' }, Math.round(b.size / 1024) + ' KB'),
+        h('tbody', {}, list.map(b => h('tr', {}, h('td', {}, b.name, b.old ? h('span', { class: 'chip', style: 'margin-left:8px' }, 'older') : null), h('td', { class: 'mono' }, new Date(b.time).toLocaleString()), h('td', { class: 'mono' }, Math.round(b.size / 1024) + ' KB'),
           h('td', {}, h('button', { class: 'btn small', type: 'button', onclick: () => restoreBackup(b) }, 'Restore')))))) : h('p', { class: 'note' }, 'No backups yet.'));
   }
   async function restoreBackup(b) {
@@ -798,7 +801,7 @@
     dexOnly = false;
     if (host) host.setDirty(false).catch(() => {});
     renderAll();
-    status(`Opened ${name}.${host ? ' A backup was saved to Documents\\RadicalHex\\Backups.' : ''}`, 'ok');
+    status(`Opened ${name}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
   }
   async function open() {
     if (!(await confirmDiscard())) return;

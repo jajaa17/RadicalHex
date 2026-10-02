@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('rh', {
   readBackup: p => call('read-backup', p),
   backupNow: bytes => call('backup-now', bytes),
   showBackups: () => call('show-backups'),
+  backupDir: () => call('backup-dir'),
   setDirty: d => call('set-dirty', d),
   version: () => call('version'),
   // Lets go of sprites and other images that are no longer on screen.

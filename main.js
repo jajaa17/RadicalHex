@@ -5,7 +5,24 @@ const path = require('path');
 const crypto = require('crypto');
 
 const SAVE_FILTERS = [{ name: 'GBA battery save', extensions: ['sav', 'srm', 'sa1', 'dsv', 'fla'] }, { name: 'All files', extensions: ['*'] }];
-const backupDir = () => path.join(app.getPath('documents'), 'RadicalHex', 'Backups');
+// Backups go in a "Backups" folder next to RadicalHex.exe. The portable .exe runs from a temporary copy, so electron-builder
+// passes the folder the .exe was started from in PORTABLE_EXECUTABLE_DIR. If that folder can't be written to
+// (Program Files, for example), backups go to Documents\RadicalHex\Backups, where versions before 1.0.5 kept them.
+const oldBackupDir = () => path.join(app.getPath('documents'), 'RadicalHex', 'Backups');
+let backupFolder = null;
+function backupDir() {
+  if (backupFolder) return backupFolder;
+  const dir = path.join(process.env.PORTABLE_EXECUTABLE_DIR || (app.isPackaged ? path.dirname(process.execPath) : __dirname), 'Backups');
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const probe = path.join(dir, '.radicalhex-write-test');
+    fs.writeFileSync(probe, 'ok'); fs.rmSync(probe);
+    backupFolder = dir;
+  } catch { backupFolder = oldBackupDir(); }
+  return backupFolder;
+}
+// Folders whose backups are listed: the current one, plus the old Documents folder if it has backups from earlier versions.
+const backupDirs = () => [...new Set([backupDir(), oldBackupDir()])].filter(d => fs.existsSync(d));
 const sha1 = buf => crypto.createHash('sha1').update(buf).digest('hex');
 const stamp = () => { // local time, e.g. 2026-10-02 23-22-47
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -65,7 +82,7 @@ function createWindow() {
   });
 }
 
-// Keeps a copy of the bytes in Documents\RadicalHex\Backups unless the newest backup of this save is identical.
+// Keeps a copy of the bytes in the backups folder unless the newest backup of this save is identical.
 function backup(name, bytes) {
   const dir = backupDir();
   fs.mkdirSync(dir, { recursive: true });
@@ -125,21 +142,18 @@ handle('save-as', async bytes => {
   win.__dirty = false;
   return r.filePath;
 });
-handle('list-backups', async () => {
-  const dir = backupDir();
-  if (!fs.existsSync(dir)) return [];
-  return fs.readdirSync(dir).filter(f => f.endsWith('.sav')).map(f => {
-    const st = fs.statSync(path.join(dir, f));
-    return { name: f, path: path.join(dir, f), size: st.size, time: st.mtimeMs };
-  }).sort((a, b) => b.time - a.time);
-});
+handle('list-backups', async () => backupDirs().flatMap(dir => fs.readdirSync(dir).filter(f => f.endsWith('.sav')).map(f => {
+  const st = fs.statSync(path.join(dir, f));
+  return { name: f, path: path.join(dir, f), size: st.size, time: st.mtimeMs, old: dir !== backupDir() };
+})).sort((a, b) => b.time - a.time));
 handle('read-backup', async p => {
-  const dir = backupDir(), full = path.resolve(p);
-  if (path.dirname(full) !== dir) throw new Error('That file is not in the RadicalHex backups folder.');
+  const full = path.resolve(p);
+  if (!backupDirs().includes(path.dirname(full))) throw new Error('That file is not in a RadicalHex backups folder.');
   return new Uint8Array(fs.readFileSync(full));
 });
 handle('backup-now', async bytes => backup(current ? current.name : 'RadicalRed.sav', Buffer.from(bytes)));
 handle('show-backups', async () => { fs.mkdirSync(backupDir(), { recursive: true }); return shell.openPath(backupDir()); });
+handle('backup-dir', async () => backupDir());
 handle('set-dirty', async d => { win.__dirty = !!d; });
 handle('version', async () => app.getVersion());
 
