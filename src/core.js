@@ -263,6 +263,7 @@
     setHiddenAbility(m, on) { const w = mon.ivWord(m); w32(m.buf, F(m, 0x48, 0x36), (on ? w | 0x80000000 : w & 0x7FFFFFFF) >>> 0); },
     isEgg: m => ((mon.ivWord(m) >>> 30) & 1) === 1,
     abilitySlot: m => (mon.pid(m) & 1) + 1,
+    abilityIndex: m => (mon.hiddenAbility(m) ? 2 : mon.pid(m) & 1), // 0 = ability 1, 1 = ability 2, 2 = hidden
     nature: m => mon.pid(m) % 25,
     shiny(m) { const x = (mon.otid(m) ^ mon.pid(m)) >>> 0; return ((x & 0xFFFF) ^ (x >>> 16)) < 16; },
     metLocation: m => m.buf[F(m, 0x45, 0x33)],
@@ -400,7 +401,8 @@
 
   // ── Personality (PID) ──
   // Finds a PID with the wanted nature and shininess. lowByte keeps gender and ability slot when given.
-  function solvePid({ otid, nature, shiny, lowByte = null, gender = null, ratio = 127, abilityBit = null }, rnd = Math.random) {
+  // keep: optional pid => bool for anything else the new PID must preserve.
+  function solvePid({ otid, nature, shiny, lowByte = null, gender = null, ratio = 127, abilityBit = null, keep = null }, rnd = Math.random) {
     const tid = otid & 0xFFFF, sid = otid >>> 16, r = n => Math.floor(rnd() * n);
     for (let n = 0; n < 500000; n++) {
       let low = lowByte;
@@ -414,17 +416,40 @@
       if (shiny) hi = (tid ^ sid ^ lo16 ^ r(8)) & 0xFFFF; // xor below 8: shiny under either shiny rule
       else { hi = r(65536); if ((tid ^ sid ^ lo16 ^ hi) < 16) continue; }
       const pid = ((hi << 16) | lo16) >>> 0;
-      if (pid % 25 === nature) return pid;
+      if (pid % 25 === nature && (!keep || keep(pid))) return pid;
     }
     throw new Error('Could not find a matching personality value.');
   }
-  function setNatureShiny(m, nature, shiny) {
-    mon.setPid(m, solvePid({ otid: mon.otid(m), nature, shiny, lowByte: mon.pid(m) & 0xFF }));
+  // Unown's letter and Minior's core also come from the PID; the game keeps them when it rerolls one (Ability Capsule).
+  const unownLetter = p => ((((p >>> 24) & 3) << 6) | (((p >>> 16) & 3) << 4) | (((p >>> 8) & 3) << 2) | (p & 3)) % 28;
+  function keepForm(D, m) {
+    const n = (D.species[mon.species(m)] || {}).n || '', old = mon.pid(m);
+    if (n === 'Unown') return p => unownLetter(p) === unownLetter(old);
+    if (/^Minior\b/.test(n)) return p => p % 7 === old % 7;
+    return null;
+  }
+  function setNatureShiny(m, nature, shiny, D) {
+    mon.setPid(m, solvePid({ otid: mon.otid(m), nature, shiny, lowByte: mon.pid(m) & 0xFF, keep: D ? keepForm(D, m) : null }));
+  }
+  // Ability: the personality's lowest bit picks ability 1 or 2, and a separate flag picks the hidden ability.
+  // A slot the species doesn't have falls back to ability 1, like the game.
+  function abilityName(X, m) {
+    const x = X && X.species[mon.species(m)];
+    if (!x) return '';
+    if (mon.hiddenAbility(m) && x.ab[2]) return x.ab[2];
+    return ((mon.pid(m) & 1) && x.ab[1]) || x.ab[0];
+  }
+  // index: 0 = ability 1, 1 = ability 2, 2 = hidden. Nature, shininess and gender stay the same.
+  function setAbility(D, m, index) {
+    mon.setHiddenAbility(m, index === 2);
+    if (index === 2 || (mon.pid(m) & 1) === index) return;
+    const ratio = genderRatio(D, mon.species(m));
+    mon.setPid(m, solvePid({ otid: mon.otid(m), nature: mon.nature(m), shiny: mon.shiny(m), gender: genderOf(D, m), ratio, abilityBit: index, keep: keepForm(D, m) }));
   }
   function setGender(D, m, gender) {
     const ratio = genderRatio(D, mon.species(m));
     if (ratio === 0 || ratio >= 254) return false;
-    mon.setPid(m, solvePid({ otid: mon.otid(m), nature: mon.nature(m), shiny: mon.shiny(m), gender, ratio, abilityBit: mon.pid(m) & 1 }));
+    mon.setPid(m, solvePid({ otid: mon.otid(m), nature: mon.nature(m), shiny: mon.shiny(m), gender, ratio, abilityBit: mon.pid(m) & 1, keep: keepForm(D, m) }));
     return true;
   }
 
@@ -494,7 +519,8 @@
   };
 
   // ── Creating, copying and moving PC Pokémon ──
-  // opts: species, level, nature, shiny, gender, nickname, item, ball, friendship, moves[4], ivs[6], evs[6], hidden
+  // opts: species, level, nature, shiny, gender, nickname, item, ball, friendship, moves[4], ivs[6], evs[6],
+  // ability (0 = ability 1, 1 = ability 2, 2 = hidden; hidden: true also means 2)
   function createInBox(sv, D, ref, opts) {
     if (ref.party) throw new Error('New Pokémon go into a box. Withdraw them in the game to add them to the party.');
     if (!mon.empty(ref)) throw new Error('That box slot is not empty.');
@@ -506,7 +532,8 @@
     if (!nick) throw new Error('The nickname uses a character the game cannot show.');
     const b = new Uint8Array(BOX_MON);
     const ratio = genderRatio(D, opts.species);
-    w32(b, 0, solvePid({ otid, nature: opts.nature, shiny: opts.shiny, gender: opts.gender, ratio }));
+    const ability = opts.hidden ? 2 : opts.ability | 0;
+    w32(b, 0, solvePid({ otid, nature: opts.nature, shiny: opts.shiny, gender: opts.gender, ratio, abilityBit: ability < 2 ? ability : null }));
     w32(b, 4, otid);
     b.set(nick, 8);
     b[0x12] = 2; // English
@@ -524,7 +551,7 @@
     b[0x33] = PALLET_TOWN;
     w16(b, 0x34, L | (GAME_FIRERED << 7) | ((t.gender & 1) << 15));
     mon.setIvs(m, opts.ivs || [31, 31, 31, 31, 31, 31]);
-    if (opts.hidden) mon.setHiddenAbility(m, true);
+    if (ability === 2) mon.setHiddenAbility(m, true);
     ref.buf.set(b, ref.off);
     if (D.species[opts.species].nat) dex.register(sv, D.species[opts.species].nat);
   }
@@ -559,13 +586,15 @@
     for (let i = 1; i < list.length; i++) { const n = typeof list[i] === 'string' ? list[i] : list[i] && list[i].n; if (n && squash(n) === q) return i; }
     return -1;
   }
-  function toShowdown(D, m) {
+  function toShowdown(D, m, X) {
     const sp = D.species[mon.species(m)]?.n || '#' + mon.species(m), nick = mon.nickname(m);
     const g = genderOf(D, m), item = mon.item(m);
     let head = nick && nick !== defaultNickname(D, mon.species(m)) ? `${nick} (${sp})` : sp;
     if (g < 2 && genderRatio(D, mon.species(m)) % 254 !== 0) head += g ? ' (F)' : ' (M)';
     if (item) head += ' @ ' + (D.items[item] || '#' + item);
     const lines = [head];
+    const ab = abilityName(X, m);
+    if (ab) lines.push('Ability: ' + ab);
     const L = levelOf(D, m);
     if (L && L !== 100) lines.push('Level: ' + L);
     if (mon.shiny(m)) lines.push('Shiny: Yes');
@@ -578,12 +607,12 @@
     for (const x of mon.moves(m)) if (x) lines.push('- ' + (D.moves[x] || '#' + x));
     return lines.join('\n');
   }
-  // Parses one Showdown set into createInBox options. Returns { opts, warnings }.
-  function fromShowdown(D, text) {
+  // Parses one Showdown set into createInBox options. Returns { opts, warnings }. X (the RadicalDex) is needed to read the ability.
+  function fromShowdown(D, text, X) {
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     if (!lines.length) throw new Error('Paste a Showdown set first.');
     const warnings = [], opts = { level: 100, nature: 0, shiny: false, gender: null, item: 0, ball: 3, friendship: 255,
-      moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], hidden: false, nickname: '' };
+      moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], ability: 0, nickname: '' };
     let head = lines[0], m;
     if ((m = head.match(/@\s*(.+)$/))) {
       const id = findName(D.items, m[1]);
@@ -607,7 +636,11 @@
       else if ((m = l.match(/^[-~]\s*(.+)/))) {
         const id = findName(D.moves, m[1].replace(/\s*\[.*\]$/, ''));
         if (id > 0 && mi < 4) opts.moves[mi++] = id; else warnings.push(`Move "${m[1]}" is not in Radical Red; skipped.`);
-      } else if (/^Ability:/i.test(l)) warnings.push('Abilities come from the species in Radical Red; only Hidden Ability can be toggled.');
+      } else if ((m = l.match(/^Ability:\s*(.+)/i))) {
+        const ab = X && X.species[opts.species] ? X.species[opts.species].ab : [];
+        const i = ab.findIndex(a => a && squash(a) === squash(m[1]));
+        if (i >= 0) opts.ability = i; else warnings.push(`${D.species[opts.species].n} can't have ${m[1]} in Radical Red; it gets ability 1.`);
+      }
     }
     return { opts, warnings };
   }
@@ -616,7 +649,7 @@
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
-    solvePid, setNatureShiny, setGender, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
+    solvePid, setNatureShiny, setGender, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, createInBox, release, swap, copyToBox, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel,
     validSpecies, validItem, validMove, encodeText, decodeText,

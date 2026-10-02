@@ -191,11 +191,31 @@ for (const file of process.argv.slice(2)) {
 
   t('Showdown export → import reproduces the Pokémon', () => {
     const sv = fresh(); const src = C.partyRef(sv, 0);
-    const text = C.toShowdown(D, src); const { opts } = C.fromShowdown(D, text);
+    const text = C.toShowdown(D, src, X); const { opts, warnings } = C.fromShowdown(D, text, X);
+    assert.deepStrictEqual(warnings, []); assert.strictEqual(C.abilityName(X, src), X.species[opts.species].ab[opts.ability]);
     assert.strictEqual(opts.species, M.species(src)); assert.deepStrictEqual(opts.ivs, M.ivs(src)); assert.deepStrictEqual(opts.evs, M.evs(src));
     assert.strictEqual(opts.nature, M.nature(src)); assert.deepStrictEqual(opts.moves, M.moves(src)); assert.strictEqual(opts.shiny, M.shiny(src));
     const set = C.fromShowdown(D, 'Rotom-Wash @ Leftovers\nAbility: Levitate\nLevel: 50\nShiny: Yes\nEVs: 252 HP / 4 Def / 252 SpD\nCalm Nature\nIVs: 0 Atk\n- Volt Switch\n- Hydro Pump\n- Will-O-Wisp\n- Thunder Punch');
     assert.strictEqual(D.species[set.opts.species].n, 'Rotom-Wash'); assert.strictEqual(set.opts.ivs[1], 0); assert.strictEqual(set.opts.moves.filter(Boolean).length, 4);
+  });
+
+  t('ability: every slot the species has can be set on party and box Pokémon, then saved', () => {
+    const sv = fresh(), refs = [];
+    for (let i = 0; i < C.partyCount(sv); i++) refs.push(C.partyRef(sv, i));
+    for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) refs.push(C.boxRef(sv, b, s));
+    let n = 0;
+    for (const m of refs) {
+      if (M.empty(m) || M.isEgg(m) || !X.species[M.species(m)]) continue;
+      const ab = X.species[M.species(m)].ab, keep = [M.nature(m), M.shiny(m), C.genderOf(D, m), M.otid(m), M.species(m)];
+      for (const i of [2, 1, 0].filter(k => ab[k])) {
+        C.setAbility(D, m, i); if (m.party) C.recalcStats(D, X, m);
+        assert.strictEqual(M.abilityIndex(m), i); assert.strictEqual(C.abilityName(X, m), ab[i]);
+        assert.deepStrictEqual([M.nature(m), M.shiny(m), C.genderOf(D, m), M.otid(m), M.species(m)], keep);
+      }
+      if (++n >= 60) break;
+    }
+    const back = C.load(C.build(sv, D));
+    for (let i = 0; i < C.partyCount(sv); i++) assert.strictEqual(M.abilityIndex(C.partyRef(back, i)), M.abilityIndex(C.partyRef(sv, i)));
   });
 
   t('every species marked addable has data and a valid nickname', () => {

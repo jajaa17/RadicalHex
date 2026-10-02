@@ -20,6 +20,9 @@
     return el;
   }
 
+  // Replaces an element's contents; null and false children are skipped (replaceChildren would show them as text).
+  const put = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter(k => k != null && k !== false));
+
   // ── State ──
   let sv = null, fileName = '', dirty = 0, undo = [];
   let tab = 'boxes', box = 0, sel = { party: false, box: 0, slot: 0 }, edTab = 'main', pocket = 'items';
@@ -46,6 +49,13 @@
     return h('img', { class: 'spr', src: `assets/sprites/${shiny ? 'shiny/' : ''}${s.s}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
   }
 
+  // Item icons: Radical Red's own 24x24 bag graphics, one PNG per item id.
+  function itemIcon(id, size = 24) {
+    if (!id || !C.validItem(D, id)) return null;
+    return h('img', { class: 'item-icon', src: `assets/items/${id}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
+  }
+  const spriteIcon = (id, size) => sprite(id, false, size);
+
   // ── Pickers: a button that opens a scrollable list. Typing to filter is optional. ──
   let OPTS = {};
   const speciesOpts = () => OPTS.species || (OPTS.species = D.species.map((s, i) => (addable(i) ? { id: i, label: s.n } : null)).filter(Boolean));
@@ -55,18 +65,20 @@
   const nameIn = (list, id) => (list === 'species' ? spName(id) : (list === 'items' ? D.items[id] : D.moves[id]) || '#' + id);
 
   // value: current id (0 = none). none: label for the empty choice, or null when an empty choice is not allowed.
-  function picker({ id, value, options, none = null, placeholder = 'Choose…', sprites = false, kind, onPick, bad = false }) {
+  // icon: optional (id, size) => element, shown next to each choice (species sprites, item icons).
+  function picker({ id, value, options, none = null, placeholder = 'Choose…', icon = null, kind, onPick, bad = false }) {
+    if (!icon && kind === 'items') icon = itemIcon;
     const btn = h('button', { id, type: 'button', class: 'pick' + (bad ? ' bad' : ''), 'aria-haspopup': 'listbox' },
-      sprites && value ? sprite(value, false, 24) : null,
+      icon && value ? icon(value, 24) : null,
       h('span', { class: 'pick-label' + (value ? '' : ' muted') }, value ? nameIn(kind, value) : none || placeholder),
       value ? h('span', { class: 'pick-id' }, '#' + value) : null,
       h('span', { class: 'pick-caret', 'aria-hidden': 'true' }, '▾'));
-    btn.addEventListener('click', () => openList(btn, value, none ? [{ id: 0, label: none }, ...options] : options, sprites, onPick));
+    btn.addEventListener('click', () => openList(btn, value, none ? [{ id: 0, label: none }, ...options] : options, icon, onPick));
     return btn;
   }
   let pop = null;
   const closeList = () => { if (pop) { pop.remove(); pop = null; } };
-  function openList(btn, value, all, sprites, onPick) {
+  function openList(btn, value, all, icon, onPick) {
     closeList();
     const search = h('input', { type: 'text', class: 'pop-search', placeholder: 'Scroll the list, or type to filter', 'aria-label': 'Filter the list', autocomplete: 'off' });
     const list = h('div', { class: 'pop-list', role: 'listbox' });
@@ -74,7 +86,7 @@
     const choose = o => { closeList(); btn.focus(); if (o.id !== value) onPick(o.id); };
     const draw = () => list.replaceChildren(...shown.map((o, k) => {
       const row = h('div', { class: 'pop-row' + (o.id === value ? ' cur' : '') + (k === active ? ' act' : ''), role: 'option', 'aria-selected': String(o.id === value) },
-        sprites ? (o.id ? sprite(o.id, false, 32) : h('span', { style: 'width:32px' })) : null,
+        icon ? (o.id && icon(o.id, icon === itemIcon ? 24 : 32)) || h('span', { style: `width:${icon === itemIcon ? 24 : 32}px;flex:none` }) : null,
         h('span', { class: 'grow' }, o.label), o.id ? h('span', { class: 'pick-id' }, '#' + o.id) : null);
       row.addEventListener('mousedown', e => { e.preventDefault(); choose(o); });
       return row;
@@ -234,9 +246,9 @@
         party ? h('span', { class: 'pinfo' }, h('span', { class: 'pname' }, M.nickname(ref) || spName(sp)), h('span', { class: 'plv' }, lv ? 'Lv ' + lv : '')) : null,
         h('span', { class: 'marks' }, M.shiny(ref) ? h('span', { class: 'star', title: 'Shiny' }, '★') : null,
           iv.every(v => v === 31) ? h('span', { class: 'perfect', title: 'Perfect IVs' }, '⬢') : null,
-          M.item(ref) ? h('span', { class: 'held', title: 'Holding ' + (D.items[M.item(ref)] || 'an item') }) : null,
           illegal(ref) ? h('span', { class: 'illegal-mark', title: 'Illegal: open it to see why' }, '✕') : null),
-        lv && !party ? h('span', { class: 'lv' }, 'Lv' + lv) : null].filter(Boolean));
+        lv && !party ? h('span', { class: 'lv' }, 'Lv' + lv) : null,
+        M.item(ref) ? h('span', { class: 'held', title: 'Holding ' + (D.items[M.item(ref)] || 'an item') }, itemIcon(M.item(ref))) : null].filter(Boolean));
       if (!party) {
         el.draggable = true;
         el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/rh-slot', `${b},${s}`); e.dataTransfer.effectAllowed = 'move'; });
@@ -267,7 +279,7 @@
       Array.from({ length: C.BOXES }, (_, b) => h('option', { value: b, selected: b === box }, `${C.boxName(sv, b)}  (${boxCount(b)}/30)`)));
     const grid = h('div', { class: 'pc' });
     for (let s = 0; s < C.SLOTS; s++) grid.append(slotButton(C.boxRef(sv, box, s), false, box, s, 72));
-    pane.replaceChildren(
+    put(pane,
       h('div', { class: 'boxbar' },
         h('button', { class: 'btn', type: 'button', title: 'Previous box', onclick: () => { box = (box + C.BOXES - 1) % C.BOXES; renderBoxes(); } }, '‹'),
         pick,
@@ -304,11 +316,11 @@
             C.partyStatus(r) ? h('span', { class: 'status-badge' + (C.partyStatus(r) === 'Fainted' ? ' fnt' : '') }, C.partyStatus(r)) : null,
             h('span', { class: 'note mono' }, 'Lv ' + C.levelOf(D, r))),
           h('span', { class: 'note' }, `${spName(sp)} · ${C.NATURES[M.nature(r)]}`),
-          h('span', { class: 'note' }, M.item(r) ? 'Holding ' + (D.items[M.item(r)] || '#' + M.item(r)) : 'No held item'),
+          h('span', { class: 'note held-line' }, itemIcon(M.item(r)), M.item(r) ? 'Holding ' + (D.items[M.item(r)] || '#' + M.item(r)) : 'No held item'),
           h('span', { class: 'hpbar', title: `HP ${hp}/${st[0]}` }, h('span', { class: pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low', style: `width:${pct}%` })),
           h('span', { class: 'pcard-moves' }, M.moves(r).map(m => h('span', {}, m ? D.moves[m] || '#' + m : '—'))))));
     }
-    $('#pane-party').replaceChildren(
+    put($('#pane-party'),
       h('div', { class: 'row' }, h('div', { class: 'section-title' }, `Party (${n}/6)`), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', disabled: !n, title: 'Restore HP, cure status conditions and refill PP for every party Pokémon', onclick: healParty }, 'Heal party')),
       h('div', { class: 'party-cards' }, cards),
@@ -358,7 +370,8 @@
           h('span', { class: 'chip' }, ['♂', '♀', '⚲'][g]),
           h('span', { class: 'chip' }, C.NATURES[M.nature(r)]),
           M.shiny(r) ? h('span', { class: 'chip accent' }, '★ Shiny') : null,
-          M.hiddenAbility(r) ? h('span', { class: 'chip' }, 'Hidden ability') : null,
+          C.abilityName(X, r) ? h('span', { class: 'chip', title: ['Ability 1', 'Ability 2', 'Hidden ability'][M.abilityIndex(r)] }, C.abilityName(X, r))
+            : M.hiddenAbility(r) ? h('span', { class: 'chip' }, 'Hidden ability') : null,
           M.isEgg(r) ? h('span', { class: 'chip' }, 'Egg') : null,
           h('span', { class: 'chip' }, C.BALLS[M.ball(r)] || 'Ball ?'))));
   }
@@ -373,7 +386,7 @@
       return;
     }
     const tabs = [['main', 'Main'], ['moves', 'Moves'], ['stats', 'Stats'], ['origin', 'Origin'], ['showdown', 'Showdown']];
-    ed.replaceChildren(
+    put(ed,
       h('div', { class: 'hero', id: 'hero' }),
       legalityPanel(r),
       h('div', { class: 'subtabs', role: 'tablist' }, tabs.map(([k, t]) =>
@@ -385,6 +398,14 @@
 
   // Every editor change goes through here: party Pokémon get their battle stats recalculated afterwards.
   const X = window.RH_DEX;
+  // Ability choices like PKHeX: the species' ability 1, ability 2 and hidden ability, by name.
+  // A slot the species lacks is only listed when the Pokémon is already set to it; uses = the ability the game falls back to.
+  const SLOT = ['1', '2', 'H'];
+  function abilityOptions(sp, cur, uses) {
+    const ab = X.species[sp] ? X.species[sp].ab : null;
+    return [0, 1, 2].filter(i => !ab || ab[i] || i === cur).map(i => h('option', { value: i, selected: i === cur },
+      ab && ab[i] ? `${ab[i]} (${SLOT[i]})` : `${['Ability 1', 'Ability 2', 'Hidden ability'][i]}${ab ? ` (none: it has ${uses || ab[0]})` : ''}`));
+  }
   function edit(r, what, fn, opts) {
     return change(what, () => { const out = fn(); if (out !== false && r.party) C.recalcStats(D, X, r); return out; }, opts);
   }
@@ -403,7 +424,7 @@
     const sp = M.species(r), ratio = C.genderRatio(D, sp), fixedGender = ratio === 0 || ratio >= 254, g = C.genderOf(D, r);
     const lv = C.levelOf(D, r);
     return [h('div', { class: 'form' },
-      field('Species', picker({ id: 'ed-species', value: sp, options: speciesOpts(), sprites: true, kind: 'species', onPick: id => {
+      field('Species', picker({ id: 'ed-species', value: sp, options: speciesOpts(), icon: spriteIcon, kind: 'species', onPick: id => {
         const L = C.levelOf(D, r), wasDefault = M.nickname(r) === C.defaultNickname(D, sp);
         edit(r, `Changed species to ${spName(id)}`, () => {
           M.setSpecies(r, id);
@@ -420,7 +441,7 @@
         const L = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1));
         edit(r, 'Set level ' + L, () => C.setLevel(D, r, L), { full: true });
       } })),
-      field('Nature', h('select', { id: 'ed-nature', onchange: e => edit(r, 'Set nature ' + C.NATURES[+e.target.value], () => C.setNatureShiny(r, +e.target.value, M.shiny(r)), { full: true }) }, natureOptions(M.nature(r)))),
+      field('Nature', h('select', { id: 'ed-nature', onchange: e => edit(r, 'Set nature ' + C.NATURES[+e.target.value], () => C.setNatureShiny(r, +e.target.value, M.shiny(r), D), { full: true }) }, natureOptions(M.nature(r)))),
       field('Gender', h('select', { id: 'ed-gender', disabled: fixedGender, onchange: e => edit(r, 'Set gender', () => C.setGender(D, r, +e.target.value), { full: true }) },
         fixedGender ? h('option', {}, genderText(g)) : [0, 1].map(v => h('option', { value: v, selected: v === g }, genderText(v))))),
       field('Held item', picker({ id: 'ed-item', value: M.item(r), options: itemOpts(), none: 'None', kind: 'items',
@@ -430,8 +451,11 @@
         const v = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0));
         edit(r, 'Set friendship ' + v, () => M.setFriendship(r, v), { full: true });
       } })),
-      h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => edit(r, e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked), { full: true }) }), '★ Shiny'),
-      h('label', { class: 'check' }, h('input', { id: 'ed-ha', type: 'checkbox', checked: M.hiddenAbility(r), onchange: e => edit(r, e.target.checked ? 'Turned on hidden ability' : 'Turned off hidden ability', () => M.setHiddenAbility(r, e.target.checked), { full: true }) }), `Hidden ability (otherwise ability ${M.abilitySlot(r)})`)),
+      field('Ability', h('select', { id: 'ed-ability', onchange: e => {
+        const i = +e.target.value;
+        edit(r, `Set ability to ${(X.species[sp] && X.species[sp].ab[i]) || ['ability 1', 'ability 2', 'hidden ability'][i]}`, () => C.setAbility(D, r, i), { full: true });
+      } }, abilityOptions(sp, M.abilityIndex(r), C.abilityName(X, r)))),
+      h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => edit(r, e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked, D), { full: true }) }), '★ Shiny')),
       sel.party ? h('p', { class: 'note' }, 'Battle stats are recalculated from Radical Red\'s base stats whenever you edit a party Pokémon.') : null];
   }
 
@@ -486,11 +510,11 @@
       h('dt', {}, 'Met location'), h('dd', {}, (window.RH_DEX.metNames[M.metLocation(r)] || 'Unknown') + ` (#${M.metLocation(r)})`),
       h('dt', {}, 'Experience'), h('dd', {}, M.exp(r).toLocaleString()),
       h('dt', {}, 'Personality'), h('dd', {}, M.pid(r).toString(16).toUpperCase().padStart(8, '0')),
-      h('dt', {}, 'Ability slot'), h('dd', {}, M.hiddenAbility(r) ? 'Hidden' : String(M.abilitySlot(r))))];
+      h('dt', {}, 'Ability'), h('dd', {}, `${C.abilityName(X, r) || '?'} (slot ${SLOT[M.abilityIndex(r)]})`))];
   }
 
   function showdownTab(r) {
-    const text = C.toShowdown(D, r), ta = h('textarea', { id: 'ed-showdown', readonly: true, rows: 10 }, text);
+    const text = C.toShowdown(D, r, X), ta = h('textarea', { id: 'ed-showdown', readonly: true, rows: 10 }, text);
     return [ta, h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => copy(text) }, 'Copy set'),
       h('span', { class: 'note' }, 'Paste it into Pokémon Showdown or into another RadicalHex box slot.'))];
   }
@@ -531,14 +555,14 @@
         onclick: () => { const [b, s] = spot; if (change(`Moved ${M.nickname(r)} to the graveyard`, () => C.swap(r, C.boxRef(sv, b, s)))) select(false, b, s); } }, 'Move to graveyard'));
     }
     row.append(h('span', { class: 'grow' }),
-      dexView.has(M.species(r)) ? h('button', { class: 'link', type: 'button', onclick: () => openDex(M.species(r)) }, 'RadicalDex') : null,
-      h('button', { class: 'link', type: 'button', onclick: () => copy(C.toShowdown(D, r)) }, 'Copy Showdown set'));
+      ...(dexView.has(M.species(r)) ? [h('button', { class: 'link', type: 'button', onclick: () => openDex(M.species(r)) }, 'RadicalDex')] : []),
+      h('button', { class: 'link', type: 'button', onclick: () => copy(C.toShowdown(D, r, X)) }, 'Copy Showdown set'));
     return row;
   }
 
   // ── Add a Pokémon (empty box slot) ──
   const newDraft = () => ({ species: 0, nickname: '', level: 50, nature: 0, gender: null, shiny: false, item: 0, ball: 3, friendship: 70,
-    hidden: false, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
+    ability: 0, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
   function addForm() {
     if (!draft) draft = newDraft();
     const d = draft, ratio = d.species ? C.genderRatio(D, d.species) : 127, fixed = ratio === 0 || ratio >= 254;
@@ -554,7 +578,7 @@
           h('button', { class: 'btn small', type: 'button', style: 'justify-self:start', onclick: () => {
             d.text = sd.value;
             try {
-              const { opts, warnings } = C.fromShowdown(D, sd.value);
+              const { opts, warnings } = C.fromShowdown(D, sd.value, X);
               if (!addable(opts.species)) throw new Error(`${spName(opts.species)} cannot be added (battle-only form or missing level data).`);
               Object.assign(d, opts, { text: sd.value });
               status(warnings.length ? 'Set loaded. ' + warnings.join(' ') : 'Set loaded. Check it and press Add.', warnings.length ? '' : 'ok');
@@ -562,8 +586,13 @@
             rerender();
           } }, 'Fill the form from this set'))),
       h('div', { class: 'form' },
-        field('Species', picker({ id: 'add-species', value: d.species, options: speciesOpts(), sprites: true, kind: 'species', placeholder: 'Choose a Pokémon',
-          onPick: id => { d.species = id; d.gender = null; if (!d.moves.some(x => x)) d.moves = startMoves(id, d.level); rerender(); } }), ' wide'),
+        field('Species', picker({ id: 'add-species', value: d.species, options: speciesOpts(), icon: spriteIcon, kind: 'species', placeholder: 'Choose a Pokémon',
+          onPick: id => {
+            d.species = id; d.gender = null;
+            if (X.species[id] && !X.species[id].ab[d.ability]) d.ability = 0; // the new species has no such ability
+            if (!d.moves.some(x => x)) d.moves = startMoves(id, d.level);
+            rerender();
+          } }), ' wide'),
         field('Nickname', h('input', { id: 'add-nick', type: 'text', maxlength: 10, value: d.nickname, placeholder: d.species ? C.defaultNickname(D, d.species) : 'Species name', onchange: e => {
           if (e.target.value && !C.encodeText(e.target.value, 10)) return pickBad(e, 'That nickname uses a character the game cannot show.');
           d.nickname = e.target.value.trim();
@@ -577,7 +606,8 @@
         field('Poké Ball', h('select', { id: 'add-ball', onchange: e => { d.ball = +e.target.value; } }, ballOptions(d.ball))),
         field('Friendship', h('input', { id: 'add-fr', type: 'number', min: 0, max: 255, value: d.friendship, onchange: e => { d.friendship = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0)); } })),
         h('label', { class: 'check' }, h('input', { id: 'add-shiny', type: 'checkbox', checked: d.shiny, onchange: e => { d.shiny = e.target.checked; rerender(); } }), '★ Shiny'),
-        h('label', { class: 'check' }, h('input', { id: 'add-ha', type: 'checkbox', checked: d.hidden, onchange: e => { d.hidden = e.target.checked; } }), 'Hidden ability'),
+        field('Ability', h('select', { id: 'add-ability', disabled: !d.species, onchange: e => { d.ability = +e.target.value; } },
+          d.species ? abilityOptions(d.species, d.ability) : h('option', {}, 'Choose a species first'))),
         ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: moveOpts(), none: 'None', kind: 'moves',
           onPick: id => { d.moves[i] = id; rerender(); } })))),
       statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v) => { d.evs[i] = v; }, null, 'add'),
@@ -633,7 +663,7 @@
       for (const id of all) if (!list.some(x => x.id === id) && list.length < p.cap) list.push({ id, qty: qtyMax === 1 ? 1 : 99 });
       setPocket(`Added every ${p.name === 'TMs & HMs' ? 'TM and HM' : p.name.toLowerCase().replace(/s$/, '')}`, list);
     };
-    $('#pane-trainer').replaceChildren(
+    put($('#pane-trainer'),
       h('div', { class: 'cards' },
         h('div', { class: 'card' }, h('h3', {}, 'Trainer'),
           h('dl', { class: 'kv' }, h('dt', {}, 'Name'), h('dd', {}, t.name), h('dt', {}, 'Gender'), h('dd', {}, t.gender ? 'Girl' : 'Boy'),
@@ -681,7 +711,7 @@
     let list = [];
     try { list = await host.listBackups(); } catch (e) { status(e.message, 'err'); }
     if (tab !== 'backups') return; // switched tabs while the list was loading
-    pane.replaceChildren(
+    put(pane,
       h('div', { class: 'row' }, h('h3', {}, 'Backups'), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', onclick: async () => { try { await host.backupNow(sv.original); status('Backed up the file as it is on disk.', 'ok'); renderBackups(); } catch (e) { status(e.message, 'err'); } } }, 'Back up now'),
         h('button', { class: 'btn', type: 'button', onclick: () => host.showBackups() }, 'Open backups folder')),
@@ -775,7 +805,7 @@
   function renderAll() { renderHeader(); setTab(tab); renderEditor(); }
   function openDex(id) { setTab('dex'); dexView.show(id); }
   // Shared with radicaldex.js and nuzlocke.js.
-  const ui = { h, sprite, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
+  const ui = { h, put, sprite, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
   const dexView = window.RHDexView(ui), nuz = window.RHNuzlocke(ui);
   $('#btnDex').onclick = () => {
     dexOnly = true;
