@@ -1,7 +1,7 @@
 // RadicalHex window: storage view, Pokémon editor, trainer & bag, backups.
 (() => {
   'use strict';
-  const C = window.RHCore, D = window.RH_DATA, M = C.mon;
+  const C = window.RHCore, D = window.RH_DATA, M = C.mon, S = window.RHSound;
   const host = window.rh || null; // desktop bridge (preload.js); null when opened in a plain browser
   const $ = (s, el = document) => el.querySelector(s);
 
@@ -49,6 +49,22 @@
     return h('img', { class: 'spr', src: `assets/sprites/${shiny ? 'shiny/' : ''}${s.s}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
   }
 
+  // Cries: a "Cry" button, and the big sprite plays it too when clicked (it hops along).
+  // A speaker icon: a filled body and stroked lines (sound waves, or a cross when muted).
+  function svgIcon(lines) {
+    const ns = 'http://www.w3.org/2000/svg', s = document.createElementNS(ns, 'svg');
+    s.setAttribute('viewBox', '0 0 16 16'); s.setAttribute('class', 'icon'); s.setAttribute('aria-hidden', 'true');
+    for (const [d, cls] of [['M2 6h3l4-3v10l-4-3H2z', 'fill'], [lines, '']]) { const p = document.createElementNS(ns, 'path'); p.setAttribute('d', d); if (cls) p.setAttribute('class', cls); s.append(p); }
+    return s;
+  }
+  const SPEAKER = 'M11 5.5a3.5 3.5 0 0 1 0 5M12.8 3.5a6 6 0 0 1 0 9', SPEAKER_OFF = 'M11 6l4 4M15 6l-4 4';
+  function cryButton(sp, pic) {
+    const nat = D.species[sp] && D.species[sp].nat;
+    if (!nat) return null;
+    if (pic) { pic.classList.add('cryable'); pic.title = `Play ${spName(sp)}'s cry`; pic.addEventListener('click', () => S.cry(nat, pic)); }
+    return h('button', { type: 'button', class: 'btn small cry', title: `Play ${spName(sp)}'s cry`, onclick: () => S.cry(nat, pic) }, svgIcon(SPEAKER), 'Cry');
+  }
+
   // Item icons: Radical Red's own 24x24 bag graphics, one PNG per item id.
   function itemIcon(id, size = 24) {
     if (!id || !C.validItem(D, id)) return null;
@@ -83,7 +99,7 @@
     const search = h('input', { type: 'text', class: 'pop-search', placeholder: 'Scroll the list, or type to filter', 'aria-label': 'Filter the list', autocomplete: 'off' });
     const list = h('div', { class: 'pop-list', role: 'listbox' });
     let shown = all, active = Math.max(0, all.findIndex(o => o.id === value));
-    const choose = o => { closeList(); btn.focus(); if (o.id !== value) onPick(o.id); };
+    const choose = o => { closeList(); btn.focus(); S.play('pick'); if (o.id !== value) onPick(o.id); };
     const draw = () => list.replaceChildren(...shown.map((o, k) => {
       const row = h('div', { class: 'pop-row' + (o.id === value ? ' cur' : '') + (k === active ? ' act' : ''), role: 'option', 'aria-selected': String(o.id === value) },
         icon ? (o.id && icon(o.id, icon === itemIcon ? 24 : 32)) || h('span', { style: `width:${icon === itemIcon ? 24 : 32}px;flex:none` }) : null,
@@ -141,7 +157,7 @@
   window.addEventListener('resize', () => { if (sv && $('#hero')) renderHero(); });
 
   // ── Status, dialogs ──
-  function status(text, kind) { const e = $('#status'); e.textContent = text; e.className = kind || ''; }
+  function status(text, kind) { const e = $('#status'); e.textContent = text; e.className = kind || ''; if (kind === 'err') S.play('error'); }
   function modal(title, body, buttons) {
     return new Promise(resolve => {
       const d = h('dialog', { class: 'card', style: 'max-width:520px;border:1px solid var(--line);color:var(--fg);background:var(--panel)' },
@@ -173,6 +189,7 @@
       dirty++;
       afterChange(opts);
       status(what + '.', 'ok');
+      S.play(opts.sfx || 'ok');
       return true;
     } catch (e) {
       restore(before);
@@ -183,6 +200,7 @@
   function doUndo() {
     const u = undo.pop();
     if (!u) return;
+    S.play('undo');
     restore(u.before);
     dirty = Math.max(0, dirty - 1);
     afterChange({ full: true });
@@ -301,7 +319,7 @@
     change('Healed the party', () => {
       for (let i = 0; i < C.partyCount(sv); i++) if (C.heal(D, C.partyRef(sv, i))) healed++;
       return healed > 0;
-    }, { full: true });
+    }, { full: true, sfx: 'heal' });
     status(healed ? `Healed ${healed} Pokémon: full HP, no status conditions and full PP.` : 'Your party is already fully healed.', healed ? 'ok' : '');
   }
 
@@ -364,10 +382,11 @@
     const r = selRef(), el = $('#hero');
     if (!el || !filled(r)) return;
     const sp = M.species(r), g = C.genderOf(D, r), lv = C.levelOf(D, r);
+    const pic = sprite(sp, M.shiny(r), heroSize(), M.isEgg(r));
     el.replaceChildren(
-      sprite(sp, M.shiny(r), heroSize(), M.isEgg(r)),
+      pic,
       h('div', { style: 'min-width:0' },
-        h('h2', {}, M.nickname(r) || spName(sp)),
+        h('div', { class: 'hero-name' }, h('h2', {}, M.nickname(r) || spName(sp)), M.isEgg(r) ? null : cryButton(sp, pic)),
         h('div', { class: 'sub' }, `${spName(sp)}${D.species[sp] && D.species[sp].nat ? ' · No. ' + D.species[sp].nat : ''} · ${sel.party ? 'Party slot ' + (sel.slot + 1) : C.boxName(sv, sel.box) + ', slot ' + (sel.slot + 1)}`),
         h('div', { class: 'chips' },
           h('span', { class: 'chip' }, lv ? 'Lv ' + lv : 'Lv ?'),
@@ -459,7 +478,7 @@
         const i = +e.target.value;
         edit(r, `Set ability to ${(X.species[sp] && X.species[sp].ab[i]) || ['ability 1', 'ability 2', 'hidden ability'][i]}`, () => C.setAbility(D, r, i), { full: true });
       } }, abilityOptions(sp, M.abilityIndex(r), C.abilityName(X, r)))),
-      h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => edit(r, e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked, D), { full: true }) }), '★ Shiny')),
+      h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => edit(r, e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked, D), { full: true, sfx: e.target.checked ? 'shiny' : 'ok' }) }), '★ Shiny')),
       sel.party ? h('p', { class: 'note' }, 'Battle stats are recalculated from Radical Red\'s base stats whenever you edit a party Pokémon.') : null];
   }
 
@@ -569,7 +588,7 @@
       } }, 'Copy to a box'));
       const st = C.partyStatus(r);
       row.append(h('button', { class: 'btn', type: 'button', title: 'Restore HP, cure status conditions and refill PP', onclick: () => {
-        if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true })) status(`${M.nickname(r)} is already fully healed.`);
+        if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true, sfx: 'heal' })) status(`${M.nickname(r)} is already fully healed.`);
       } }, st ? `Heal (${st.toLowerCase()})` : 'Heal'));
     } else {
       row.append(h('button', { class: 'btn', type: 'button', disabled: !target, onclick: () => {
@@ -579,7 +598,7 @@
       const rel = h('button', { class: 'btn danger', type: 'button', onclick: () => {
         if (!rel.classList.contains('armed')) { rel.classList.add('armed'); rel.textContent = 'Click again to release'; return; }
         const name = M.nickname(r);
-        if (change(`Released ${name}`, () => C.release(r))) select(false, sel.box, sel.slot);
+        if (change(`Released ${name}`, () => C.release(r), { sfx: 'release' })) select(false, sel.box, sel.slot);
       } }, 'Release');
       row.append(rel);
       const grave = nuz.graveBox(), spot = grave >= 0 && grave !== sel.box ? firstEmpty(grave) : null;
@@ -600,10 +619,11 @@
     const d = draft, ratio = d.species ? C.genderRatio(D, d.species) : 127, fixed = ratio === 0 || ratio >= 254;
     const rerender = () => queueEditor();
     const pickBad = (e, msg) => { e.target.classList.add('bad'); status(msg, 'err'); };
+    const addPic = d.species ? sprite(d.species, d.shiny, heroSize()) : h('span', { class: 'spr none', style: `width:${heroSize()}px;height:${heroSize()}px;font-size:40px` });
     const sd = h('textarea', { id: 'add-sd', rows: 7, placeholder: 'Garchomp @ Choice Scarf\nLevel: 50\nJolly Nature\nEVs: 252 Atk / 4 SpD / 252 Spe\n- Earthquake\n- Outrage\n- Stone Edge\n- Fire Fang' }, d.text);
     return [
-      h('div', { class: 'hero' }, d.species ? sprite(d.species, d.shiny, heroSize()) : h('span', { class: 'spr none', style: `width:${heroSize()}px;height:${heroSize()}px;font-size:40px` }),
-        h('div', {}, h('h2', {}, 'Add a Pokémon'), h('div', { class: 'sub' }, `${C.boxName(sv, sel.box)}, slot ${sel.slot + 1}`),
+      h('div', { class: 'hero' }, addPic,
+        h('div', {}, h('div', { class: 'hero-name' }, h('h2', {}, 'Add a Pokémon'), d.species ? cryButton(d.species, addPic) : null), h('div', { class: 'sub' }, `${C.boxName(sv, sel.box)}, slot ${sel.slot + 1}`),
           h('p', { class: 'note', style: 'margin-top:6px' }, 'It will belong to you, met at Pallet Town, in the ball you choose.'))),
       h('details', { open: !!d.text }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Paste a Showdown set'),
         h('div', { style: 'display:grid;gap:8px;margin-top:8px' }, sd,
@@ -676,7 +696,7 @@
     if (!d.species) { status('Choose a species first.', 'err'); return; }
     if (!d.moves.some(x => x)) { status('Give it at least one move.', 'err'); return; }
     const name = spName(d.species);
-    if (change(`Added ${name} to ${C.boxName(sv, sel.box)}`, () => C.createInBox(sv, D, C.boxRef(sv, sel.box, sel.slot), d), { full: true })) {
+    if (change(`Added ${name} to ${C.boxName(sv, sel.box)}`, () => C.createInBox(sv, D, C.boxRef(sv, sel.box, sel.slot), d), { full: true, sfx: 'ball' })) {
       draft = null;
       edTab = 'main';
     }
@@ -802,6 +822,7 @@
     if (host) host.setDirty(false).catch(() => {});
     renderAll();
     status(`Opened ${name}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
+    S.play('ok');
   }
   async function open() {
     if (!(await confirmDiscard())) return;
@@ -831,6 +852,7 @@
       if (host && as) fileName = where.split(/[\\/]/).pop();
       renderAll();
       status(host ? `Saved ${where}. The previous version is in Backups.` : `Downloaded ${where}. Your original file was not changed.`, 'ok');
+      S.play('save');
     } catch (e) { showError('Could not save', e); }
   }
 
@@ -855,13 +877,29 @@
   function renderAll() { renderHeader(); setTab(tab); renderEditor(); }
   function openDex(id) { setTab('dex'); dexView.show(id); }
   // Shared with radicaldex.js and nuzlocke.js.
-  const ui = { h, put, sprite, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
+  const ui = { h, put, sprite, cryButton, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
   const dexView = window.RHDexView(ui), nuz = window.RHNuzlocke(ui);
   $('#btnDex').onclick = () => {
     dexOnly = true;
     $('#welcome').hidden = true; $('#app').hidden = false; $('#app').classList.add('dex-only');
     setTab('dex');
   };
+
+  // Sounds: a tiny blip for clicks (each control kind has its own), on/off button in the top bar.
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b || b.disabled || b.matches('.cry, #btnSound')) return;
+    S.play(b.matches('.tab, .subtab, .pocket') ? 'tab' : b.matches('.slot, .pcard, .dex-row, .mon-chip, .nz-mon') ? 'select' : b.matches('.pick') ? 'open' : 'tick');
+  }, true);
+  function renderSound() {
+    const b = $('#btnSound');
+    b.replaceChildren(svgIcon(S.isOn() ? SPEAKER : SPEAKER_OFF));
+    b.title = S.isOn() ? 'Sounds are on. Click to turn them off (cries still play when you ask for one).' : 'Sounds are off. Click to turn them on.';
+    b.setAttribute('aria-label', S.isOn() ? 'Turn sounds off' : 'Turn sounds on');
+    b.setAttribute('aria-pressed', String(S.isOn()));
+  }
+  $('#btnSound').onclick = () => { S.setOn(!S.isOn()); renderSound(); S.play('ok'); };
+  renderSound();
 
   function renderHax() {
     const b = $('#btnHax');
@@ -873,6 +911,7 @@
   }
   $('#btnHax').onclick = () => {
     hax = !hax;
+    S.play(hax ? 'hax' : 'ok');
     try { localStorage.setItem('radicalhex-hax', hax ? '1' : '0'); } catch { /* not remembered */ }
     OPTS = {}; // species list changes with the mode
     renderHax();

@@ -8,6 +8,10 @@
 
 ![The Boxes tab with a Pokémon open in the editor](docs/screenshot-boxes.png)
 
+> [!WARNING]
+> **Editing a save always carries some risk. Use RadicalHex at your own risk.**
+> RadicalHex backs up your save every time you open or save it, checks every save before writing it, and refuses to write anything that looks wrong. Even so, it can't guarantee your save will never break. Radical Red is a ROM hack with its own rules, and some edits the file allows can still confuse the game: RadicalHaX mode, battle-only forms, key items, story items, extreme values, or lots of big edits at once. **Keep your own copy of your save before editing**, make changes a few at a time, and test them in the game. If something goes wrong, restore a backup from the **Backups** tab.
+
 ## Download
 
 Download **RadicalHex.exe** from the [Releases page](https://github.com/jajaa17/RadicalHex/releases) and run it. There is nothing to install.
@@ -89,6 +93,12 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - Undo (Ctrl+Z) for every edit, and a warning before closing with unsaved changes.
 - The Open dialog starts in the folder of the last save you opened.
 
+### Sounds and cries
+- Every Pokémon has a **Cry** button (in the editor and the RadicalDex). Clicking its big sprite plays the cry too, and it hops along
+- Little GBA-style sounds for clicks, tabs, picking from lists, saving, undo, errors, adding a Pokémon (a Poké Ball catch), releasing, healing and making a Pokémon shiny
+- The speaker button in the top bar turns the sounds off or on. Cries still play when you ask for one
+- Light: the sounds are made by the app as they play (no sound files), and each cry is a small file that only loads when you press Cry
+
 ### Fits your screen, light on memory
 - Works on anything from old 1024×768 monitors and scaled laptop screens to large displays. The layout adapts when the window is small or not maximized.
 - Only the tab you are looking at is kept in memory, and long lists only draw the rows on screen, so RadicalHex stays light even on older PCs.
@@ -129,6 +139,7 @@ The data files are generated, in this order, from the sources listed below:
 node tools/build-dex.js <sources>        # src/dex.js and tools/rr-tables.json
 python3 tools/build-data.py <sources>    # src/data.js and the sprites
 python3 tools/build-items.py <sources>   # the item icons
+python3 tools/build-cries.py <sources>   # the cries (needs ffmpeg)
 ```
 
 The top of each script lists which repositories go in the `<sources>` folder.
@@ -143,12 +154,14 @@ The screenshots in `docs` are made from a demo save with `npx electron tools/scr
 - [pret/pokefirered](https://github.com/pret/pokefirered) for FireRed's location names
 - [Complete Fire Red Upgrade](https://github.com/Skeli789/Complete-Fire-Red-Upgrade), the engine Radical Red is built on
 - Radical Red's own `Base_Stats.c` (from the history of [Ydarissep/Radical-Red-Pokedex](https://github.com/Ydarissep/Radical-Red-Pokedex)) for experience growth rates
-- [PokéAPI](https://github.com/PokeAPI/pokeapi) for national Pokédex numbers and gender ratios, and [PokéAPI sprites](https://github.com/PokeAPI/sprites) for the Pokémon sprites
+- [PokéAPI](https://github.com/PokeAPI/pokeapi) for national Pokédex numbers and gender ratios, [PokéAPI sprites](https://github.com/PokeAPI/sprites) for the Pokémon sprites, and [PokéAPI cries](https://github.com/PokeAPI/cries) for the cries
 - Pokémon Radical Red by soupercell and the Radical Red team
 
-RadicalHex is a fan project and is not affiliated with Nintendo, Creatures Inc., GAME FREAK inc. or The Pokémon Company. Pokémon names and sprites are © their respective owners. Please do not use edited Pokémon against people who have not agreed to it.
+RadicalHex is a fan project and is not affiliated with Nintendo, Creatures Inc., GAME FREAK inc. or The Pokémon Company. Pokémon names, sprites and cries are © their respective owners. Please do not use edited Pokémon against people who have not agreed to it.
 
 ### A note from me
+
+RadicalHex started as something just for my own Radical Red saves. I decided to put it on GitHub for anyone else who wants to use it. It's free and open source, so if you don't trust a random .exe (fair!), you can read every line of the code here, or build it yourself from source.
 
 I'm new to JavaScript and the other languages RadicalHex is written in. I wanted a save editor for Radical Red, so I built this with help from [Claude](https://claude.ai) by Anthropic, which showed me how to do things I didn't know were possible yet.
 
