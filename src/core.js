@@ -30,6 +30,7 @@
   const BAG_END = 0xAFC + 75 * 4; // end of the bag image
   const DEX_SEEN = 0x310, DEX_CAUGHT = 0x38D, DEX_BYTES = 125;
   const MONEY_MAX = 999999, COINS_MAX = 9999;
+  const EV_CAP = 252, EV_TOTAL = 510; // the game's limits (CFRU config.h EV_CAP, pokemon.h MAX_TOTAL_EVS)
 
   const BALLS = ['Master Ball', 'Ultra Ball', 'Great Ball', 'Poké Ball', 'Safari Ball', 'Net Ball', 'Dive Ball', 'Nest Ball',
     'Repeat Ball', 'Timer Ball', 'Luxury Ball', 'Premier Ball', 'Dusk Ball', 'Heal Ball', 'Quick Ball', 'Cherish Ball',
@@ -344,8 +345,9 @@
     mv.forEach((id, i) => { if (id && !set.has(id)) add('error', `${name} can't learn ${D.moves[id] || '#' + id} in Radical Red (not a level-up, TM, tutor, egg or pre-evolution move).`, 'move' + i); });
     const dup = mv.find((id, i) => id && mv.indexOf(id) !== i);
     if (dup) add('error', `${D.moves[dup] || '#' + dup} is in two move slots.`, 'moves');
-    const total = mon.evs(m).reduce((a, b) => a + b, 0);
-    if (total > 510) add('error', `Its EVs add up to ${total}. A Pokémon can have at most 510.`, 'evs');
+    const ev = mon.evs(m), total = ev.reduce((a, b) => a + b, 0), over = STATS.filter((_, i) => ev[i] > EV_CAP);
+    if (total > EV_TOTAL) add('error', `Its EVs add up to ${total}. A Pokémon can have at most ${EV_TOTAL}.`, 'evs');
+    if (over.length) add('error', `${over.join(', ')} ${over.length > 1 ? 'EVs are' : 'EV is'} above ${EV_CAP}, the most one stat can have.`, 'evs');
     if (mon.hiddenAbility(m) && !x.ab[2]) add('warn', `${name} has no hidden ability in Radical Red, so the game uses its normal ability.`, 'ability');
     const L = expLevel(D, m);
     if (L && mon.metLevel(m) > L) add('warn', `It was met at level ${mon.metLevel(m)} but its EXP only reaches level ${L}.`, 'level');
@@ -360,6 +362,11 @@
     return out;
   }
   const isIllegal = (D, X, m) => legality(D, X, m).some(p => p.level === 'error');
+  // EVs the game allows: at most 252 per stat and 510 in total, filled in stat order.
+  function clampEvs(evs) {
+    let left = EV_TOTAL;
+    return evs.map(v => { const x = Math.max(0, Math.min(EV_CAP, left, v | 0)); left -= x; return x; });
+  }
 
   // ── Species helpers ──
   const growth = (D, sp) => (D.species[sp] && D.species[sp].g ? D.exp[D.species[sp].g - 1] : null);
@@ -635,7 +642,8 @@
       else if ((m = l.match(/^Happiness:\s*(\d+)/i))) opts.friendship = Math.min(255, +m[1]);
       else if ((m = l.match(/^[-~]\s*(.+)/))) {
         const id = findName(D.moves, m[1].replace(/\s*\[.*\]$/, ''));
-        if (id > 0 && mi < 4) opts.moves[mi++] = id; else warnings.push(`Move "${m[1]}" is not in Radical Red; skipped.`);
+        if (id <= 0) warnings.push(`Move "${m[1]}" is not in Radical Red; skipped.`);
+        else if (mi < 4) opts.moves[mi++] = id; else warnings.push(`A Pokémon knows four moves, so ${D.moves[id]} was skipped.`);
       } else if ((m = l.match(/^Ability:\s*(.+)/i))) {
         const ab = X && X.species[opts.species] ? X.species[opts.species].ab : [];
         const i = ab.findIndex(a => a && squash(a) === squash(m[1]));
@@ -651,7 +659,8 @@
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, createInBox, release, swap, copyToBox, toShowdown, fromShowdown, heal, partyStatus, STATUS,
-    calcStats, recalcStats, legality, isIllegal, expLevel,
+    calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
+    learnable: (X, sp) => learnSet(X, sp), // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
