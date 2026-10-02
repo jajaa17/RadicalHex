@@ -3,6 +3,7 @@
 const fs = require('fs'), path = require('path'), assert = require('assert');
 const C = require('../src/core.js');
 global.window = {}; eval(fs.readFileSync(path.join(__dirname, '../src/data.js'), 'utf8')); const D = window.RH_DATA;
+eval(fs.readFileSync(path.join(__dirname, '../src/dex.js'), 'utf8')); const X = window.RH_DEX;
 const M = C.mon;
 let failures = 0;
 const t = (name, fn) => { try { fn(); console.log('  ok  ', name); } catch (e) { failures++; console.log('  FAIL', name, '\n       ', e.message); } };
@@ -131,6 +132,34 @@ for (const file of process.argv.slice(2)) {
     assert.strictEqual(C.partyStatus(p), '');
     M.moves(p).forEach((m, i) => assert.strictEqual(M.movePp(p)[i], m ? D.pp[m] + Math.floor(D.pp[m] / 5) * ((p.buf[p.off + 0x28] >> (2 * i)) & 3) : 0));
     assert.strictEqual(C.heal(D, C.partyRef(back, 0)), false, 'healing a healthy Pokémon changes nothing');
+  });
+
+  t('legality: catches impossible Pokémon', () => {
+    const sv = fresh(), r = C.boxRef(sv, 24, 29); C.release(r);
+    const sp = D.species.findIndex(x => x.n === 'Garchomp');
+    C.createInBox(sv, D, r, { species: sp, level: 60, nature: 3, shiny: false, moves: [D.moves.indexOf('Earthquake'), D.moves.indexOf('Dragon Claw'), 0, 0] });
+    assert.deepStrictEqual(C.legality(D, X, r).filter(p => p.level === 'error'), [], 'a normal Garchomp is legal');
+    M.setMoves(r, [D.moves.indexOf('Earthquake'), D.moves.indexOf('Spore'), D.moves.indexOf('Earthquake'), 0], D);
+    M.setEvs(r, [252, 252, 252, 0, 0, 0]);
+    const errs = C.legality(D, X, r).filter(p => p.level === 'error').map(p => p.field).sort();
+    assert.deepStrictEqual(errs, ['evs', 'move1', 'moves']);
+    M.setSpecies(r, D.species.findIndex(x => x.n === 'Charizard-Mega-X'));
+    assert.ok(C.legality(D, X, r).some(p => p.field === 'species' && p.level === 'error'), 'battle-only form');
+  });
+
+  t('party stats: recalculation matches the game and follows edits', () => {
+    const sv = fresh(), r = C.partyRef(sv, 0), before = M.partyStats(r).join();
+    assert.ok(C.recalcStats(D, X, r));
+    assert.strictEqual(M.partyStats(r).join(), before, 'recalculating an untouched Pokémon changes nothing');
+    M.setIvs(r, [0, 0, 0, 0, 0, 0]); C.recalcStats(D, X, r);
+    assert.notStrictEqual(M.partyStats(r).join(), before);
+    assert.ok(!C.legality(D, X, r).some(p => p.field === 'stats'), 'stats are consistent after recalculating');
+    C.load(C.build(sv, D));
+  });
+
+  t('legality: no Pokémon in this save is flagged for stats or level-vs-EXP when untouched', () => {
+    const sv = fresh();
+    for (let i = 0; i < C.partyCount(sv); i++) assert.ok(!C.legality(D, X, C.partyRef(sv, i)).some(p => p.field === 'stats'));
   });
 
   t('money, coins and every bag pocket', () => {

@@ -30,15 +30,34 @@ window.RHDexView = function (ui) {
     return { bySpecies, families };
   }
 
+  // Only the rows in view are in the page (plus a few either side), so the list stays light with 1,300+ Pokémon.
+  const ROW = 35, EXTRA = 8;
+  let rows = [];
   function list(own) {
     const q = squash(query);
-    const rows = all.filter(id => (!q || squash(name(id)).includes(q) || String(X.species[id].nat) === query.trim())
+    rows = all.filter(id => (!q || squash(name(id)).includes(q) || String(X.species[id].nat) === query.trim())
       && (type < 0 || X.species[id].t.includes(type)) && (!ownedOnly || own.bySpecies.has(id)));
-    const box = h('div', { class: 'dex-list', role: 'listbox', 'aria-label': 'Pokémon' }, rows.map(id =>
-      h('button', { type: 'button', class: 'dex-row' + (id === current ? ' cur' : ''), role: 'option', 'aria-selected': String(id === current), onclick: () => { listTop = box.scrollTop; show(id); } },
-        sprite(id, false, 32), h('span', { class: 'grow' }, name(id)),
-        own.bySpecies.has(id) ? h('span', { class: 'own-dot', title: 'In your save' }) : null,
-        h('span', { class: 'pick-id' }, pad(X.species[id].nat)))));
+    const inner = h('div', { class: 'dex-vlist', style: `height:${rows.length * ROW}px` });
+    const box = h('div', { class: 'dex-list', role: 'listbox', 'aria-label': 'Pokémon' }, inner);
+    let first = -1, last = -1;
+    const row = (id, i) => {
+      const b = h('button', { type: 'button', class: 'dex-row' + (id === current ? ' cur' : ''), role: 'option', 'aria-selected': String(id === current),
+        onclick: () => { listTop = box.scrollTop; show(id); } },
+      sprite(id, false, 32), h('span', { class: 'grow' }, name(id)),
+      own.bySpecies.has(id) ? h('span', { class: 'own-dot', title: 'In your save' }) : null,
+      h('span', { class: 'pick-id' }, pad(X.species[id].nat)));
+      b.style.top = i * ROW + 'px';
+      return b;
+    };
+    const paint = () => {
+      const a = Math.max(0, Math.floor(box.scrollTop / ROW) - EXTRA);
+      const z = Math.min(rows.length, Math.ceil((box.scrollTop + (box.clientHeight || 600)) / ROW) + EXTRA);
+      if (a === first && z === last) return;
+      first = a; last = z;
+      inner.replaceChildren(...rows.slice(a, z).map((id, k) => row(id, a + k)));
+    };
+    box.addEventListener('scroll', () => { paint(); if (ui.trim) ui.trim(); }, { passive: true });
+    box.paint = paint;
     const page = d => box.scrollBy({ top: d * (box.clientHeight - 40) });
     return [h('div', { class: 'dex-count note' }, `${rows.length} Pokémon`), box,
       h('div', { class: 'pop-pager' },
@@ -117,7 +136,7 @@ window.RHDexView = function (ui) {
         h('div', { class: 'moves-grid' }, s.lv.map(([m, lv]) => [h('span', { class: 'mono muted' }, lv ? 'Lv ' + lv : 'Evo'), h('span', {}, D.moves[m] || '#' + m)]))) : null);
   }
 
-  let pane = null;
+  let pane = null, sizer = null;
   function render(el) {
     pane = el || pane;
     const own = owned();
@@ -132,8 +151,11 @@ window.RHDexView = function (ui) {
       h('aside', { class: 'dex-side' }, h('div', { class: 'dex-filters' }, search, types, ownBox), count, box, pager),
       detail(current, own)));
     box.scrollTop = listTop;
-    const cur = box.querySelector('.cur');
-    if (cur && (cur.offsetTop < box.scrollTop || cur.offsetTop > box.scrollTop + box.clientHeight)) cur.scrollIntoView({ block: 'center' });
+    const at = rows.indexOf(current) * ROW;
+    if (at >= 0 && (at < box.scrollTop || at + ROW > box.scrollTop + box.clientHeight)) box.scrollTop = Math.max(0, at - box.clientHeight / 2);
+    box.paint();
+    // The list's height is only known once the page is laid out (and changes when the window is resized).
+    if (window.ResizeObserver) { if (!sizer) sizer = new ResizeObserver(es => { for (const e of es) if (e.target.paint) e.target.paint(); }); sizer.disconnect(); sizer.observe(box); }
   }
   function show(id) {
     if (!X.species[id]) return;

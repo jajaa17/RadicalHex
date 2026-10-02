@@ -33,8 +33,9 @@ window.RHNuzlocke = function (ui) {
     }
     return out;
   }
-  const chip = (m, extra) => h('button', { type: 'button', class: 'nz-mon' + (m.dead ? ' dead' : ''), title: `${M.nickname(m.r)} — ${m.where}`, onclick: () => ui.select(m.party, m.box, m.slot) },
-    sprite(M.species(m.r), M.shiny(m.r), 32, M.isEgg(m.r)),
+  // The encounter log can hold hundreds of Pokémon, so its chips skip the sprite to keep memory low.
+  const chip = (m, extra, pic = true) => h('button', { type: 'button', class: 'nz-mon' + (m.dead ? ' dead' : '') + (pic ? '' : ' plain'), title: `${M.nickname(m.r)} — ${m.where}`, onclick: () => ui.select(m.party, m.box, m.slot) },
+    pic ? sprite(M.species(m.r), M.shiny(m.r), 32, M.isEgg(m.r)) : null,
     h('span', { class: 'nz-name' }, M.nickname(m.r)),
     h('span', { class: 'nz-tag' + (m.dead ? ' dead' : m.party ? ' party' : '') }, extra || m.where));
 
@@ -83,7 +84,7 @@ window.RHNuzlocke = function (ui) {
         h('thead', {}, h('tr', {}, h('th', {}, 'Location'), h('th', {}, 'Pokémon'))),
         h('tbody', {}, locs.map(l => h('tr', { class: groups.get(l).length > 1 && l < 253 ? 'flag' : '' },
           h('td', {}, X.metNames[l] || `Location #${l}`, groups.get(l).length > 1 && l < 253 ? h('div', { class: 'warn' }, `${groups.get(l).length} Pokémon met here`) : null),
-          h('td', {}, h('div', { class: 'nz-chips' }, groups.get(l).map(m => chip(m))))))))),
+          h('td', {}, h('div', { class: 'nz-chips' }, groups.get(l).map(m => chip(m, null, false))))))))),
       h('div', { class: 'section-title' }, 'No encounter yet'),
       open.length ? h('div', { class: 'nz-open' }, open.map(i => h('span', { class: 'chip' }, X.metNames[i])))
         : h('p', { class: 'note' }, 'You have a catch from every location with wild Pokémon that RadicalHex can match.'),
