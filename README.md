@@ -38,12 +38,14 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - Species, nickname, level, nature, gender, shininess, held item, Poké Ball, friendship, ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
 - **Ability** is a dropdown like PKHeX's, listing the species' own abilities by name: ability 1, ability 2 (if it has one) and its hidden ability (H). Changing it keeps the nature, shininess and gender, like the game does when it changes an ability
 - Origin details: original trainer, IDs, met location and level
+- **Moves** list only what the species can learn in Radical Red (level-up, TM, tutor, egg and pre-evolution moves), and not moves it already knows. In RadicalHaX mode every move is listed
+- **EVs** stop at the game's limits: 252 per stat and 510 in total. The arrows stop there, and a bigger number you type is lowered to what is left. RadicalHaX mode allows up to 255 with no total
 - Items show Radical Red's own bag icons everywhere: held items, the bag and every item list
 - Every list (species, items, moves, bag) opens as a list you can browse by scrolling, by clicking a letter (A–Z), or with Page up and Page down buttons. Typing to filter is optional, and nothing needs a scroll wheel.
 
 ### Legality check and RadicalHaX mode
 - Like PKHeX's legality check: every Pokémon is checked against Radical Red 4.1's own data, and the editor shows **✓ Legal**, warnings or **✕ Illegal** with the reason
-- Catches moves the species can't learn in Radical Red (level-up, TM, tutor, egg and pre-evolution moves are all counted), duplicate moves, battle-only forms such as Megas outside battle, too many EVs, a hidden ability on a species without one, impossible met levels, key items as held items, and party stats that don't match
+- Catches moves the species can't learn in Radical Red (level-up, TM, tutor, egg and pre-evolution moves are all counted), duplicate moves, battle-only forms such as Megas outside battle, EVs above 252 or 510 in total, a hidden ability on a species without one, impossible met levels, key items as held items, and party stats that don't match
 - The Boxes tab counts the illegal Pokémon in your save. Click the count to jump from one to the next
 - **RadicalHaX mode** (the button in the top bar) is the PKHaX-style mode: legality checks are off and anything goes, including Megas and other battle-only forms. The save safety checks below always stay on, so the file itself can't be damaged
 

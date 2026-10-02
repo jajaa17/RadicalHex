@@ -66,9 +66,9 @@
 
   // value: current id (0 = none). none: label for the empty choice, or null when an empty choice is not allowed.
   // icon: optional (id, size) => element, shown next to each choice (species sprites, item icons).
-  function picker({ id, value, options, none = null, placeholder = 'Choose…', icon = null, kind, onPick, bad = false }) {
+  function picker({ id, value, options, none = null, placeholder = 'Choose…', icon = null, kind, onPick, bad = false, disabled = false }) {
     if (!icon && kind === 'items') icon = itemIcon;
-    const btn = h('button', { id, type: 'button', class: 'pick' + (bad ? ' bad' : ''), 'aria-haspopup': 'listbox' },
+    const btn = h('button', { id, type: 'button', class: 'pick' + (bad ? ' bad' : ''), 'aria-haspopup': 'listbox', disabled },
       icon && value ? icon(value, 24) : null,
       h('span', { class: 'pick-label' + (value ? '' : ' muted') }, value ? nameIn(kind, value) : none || placeholder),
       value ? h('span', { class: 'pick-id' }, '#' + value) : null,
@@ -158,12 +158,16 @@
   // ── Changes and undo ──
   const snapshot = () => ({ data: sv.data.slice(), stream: sv.stream.slice(), raw: sv.raw.slice(), ext: sv.ext.slice() });
   const restore = s => { sv.data.set(s.data); sv.stream.set(s.stream); sv.raw.set(s.raw); sv.ext.set(s.ext); };
+  const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+  const unchanged = s => sameBytes(s.data, sv.data) && sameBytes(s.stream, sv.stream) && sameBytes(s.raw, sv.raw) && sameBytes(s.ext, sv.ext);
   // Runs one edit. If it throws, the save is put back exactly as it was.
   function change(what, fn, opts = {}) {
     const before = snapshot();
     try {
       const r = fn();
       if (r === false) { restore(before); return false; }
+      // Nothing actually changed (e.g. the same value typed again): no undo step and no unsaved change, just redraw.
+      if (unchanged(before)) { if (opts.full) queueEditor(); return false; }
       undo.push({ what, before });
       if (undo.length > 50) undo.shift();
       dirty++;
@@ -286,7 +290,7 @@
         h('button', { class: 'btn', type: 'button', title: 'Next box', onclick: () => { box = (box + 1) % C.BOXES; renderBoxes(); } }, '›'),
         h('span', { class: 'spacer' }),
         illegalButton(),
-        h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 22 boxes' }, 'Max IVs on everything')),
+        h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 25 boxes' }, 'Max IVs on everything')),
       grid,
       box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
       h('p', { class: 'note' }, 'Drag a Pokémon onto another box slot to move or swap it. Click an empty box slot to add a new Pokémon.'));
@@ -459,27 +463,55 @@
       sel.party ? h('p', { class: 'note' }, 'Battle stats are recalculated from Radical Red\'s base stats whenever you edit a party Pokémon.') : null];
   }
 
+  // Move choices. Normal mode lists only moves the species can learn in Radical Red (the same list the legality
+  // check uses) that are not already in another slot; RadicalHaX mode lists every move. The current move stays listed.
+  function moveChoices(sp, mv, i) {
+    if (hax || !X.species[sp]) return moveOpts();
+    const set = C.learnable(X, sp);
+    return moveOpts().filter(o => o.id === mv[i] || (set.has(o.id) && !mv.includes(o.id)));
+  }
+  const moveNote = sp => (hax ? 'RadicalHaX mode: every move is listed.'
+    : X.species[sp] ? `Only moves ${spName(sp)} can learn in Radical Red are listed (level-up, TM, tutor, egg and pre-evolution moves). Turn on RadicalHaX mode for any move.`
+      : `There is no Radical Red move data for ${spName(sp)}, so every move is listed.`);
   function movesTab(r) {
-    const mv = M.moves(r), pp = M.movePp(r);
+    const mv = M.moves(r), pp = M.movePp(r), sp = M.species(r);
     return [h('div', { class: 'form' }, mv.map((m, i) =>
-      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveOpts(), none: 'None', kind: 'moves', bad: legal(r).some(p => p.field === 'move' + i), onPick: id => {
+      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveChoices(sp, mv, i), none: 'None', kind: 'moves', bad: legal(r).some(p => p.field === 'move' + i), onPick: id => {
         const next = mv.slice(); next[i] = id;
         if (!next.some(x => x)) { status('A Pokémon needs at least one move.', 'err'); return; }
         edit(r, id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
       } }), ' wide'))),
-    h('p', { class: 'note' }, 'Radical Red allows any move here. Changing a move refills its PP and removes PP Ups for that slot.')];
+    h('p', { class: 'note' }, moveNote(sp) + ' Changing a move refills its PP and removes PP Ups for that slot.')];
   }
 
+  // Highest EV stat i can have next to the others: 252 per stat and 510 in total, like the game.
+  // RadicalHaX mode allows up to 255 (the most the save can store) with no total.
+  const evCap = (evs, i) => (hax ? 255 : Math.max(0, Math.min(C.EV_CAP, C.EV_TOTAL - evs.reduce((a, b, k) => (k === i ? a : a + b), 0))));
+  const evCapNote = (i, v) => `${C.STATS[i]} EV is ${v}, the most it can have: ${C.EV_CAP} per stat and ${C.EV_TOTAL} in total. RadicalHaX mode allows more.`;
+  // onEv(i, value, capped): capped is true when the typed number was lowered to the limit.
   function statsGrid(ivs, evs, nature, onIv, onEv, values, idp) {
     // Nature indexes Atk/Def/Spe/SpA/SpD; grid rows are HP/Atk/Def/SpA/SpD/Spe.
     const up = Math.floor(nature / 5), down = nature % 5, rowOf = k => [1, 2, 5, 3, 4][k];
     const mark = i => (up === down ? '' : i === rowOf(up) ? ' up' : i === rowOf(down) ? ' down' : '');
     const g = h('div', { class: 'stats' }, h('span'), h('span', { class: 'h' }, 'IV'), h('span', { class: 'h' }, 'EV'), h('span', { class: 'h' }, values ? 'Stat' : ''));
-    C.STATS.forEach((s, i) => g.append(
-      h('span', { class: 'name' + mark(i), title: mark(i) === ' up' ? 'Raised by nature' : mark(i) === ' down' ? 'Lowered by nature' : '' }, s),
-      h('input', { id: `${idp}-iv${i}`, type: 'number', min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => onIv(i, Math.max(0, Math.min(31, Math.round(+e.target.value) || 0))) }),
-      h('input', { id: `${idp}-ev${i}`, type: 'number', min: 0, max: 255, value: evs[i], 'aria-label': s + ' EV', onchange: e => onEv(i, Math.max(0, Math.min(255, Math.round(+e.target.value) || 0))) }),
-      h('span', { class: 'val' }, values ? values[i] : '')));
+    const cur = evs.slice(), evInputs = [];
+    C.STATS.forEach((s, i) => {
+      // max stops the arrows at the limit; a bigger typed number is lowered to it.
+      const ev = h('input', { id: `${idp}-ev${i}`, type: 'number', min: 0, max: evCap(cur, i), value: evs[i], 'aria-label': s + ' EV', onchange: e => {
+        const want = Math.max(0, Math.round(+e.target.value) || 0), v = Math.min(want, evCap(cur, i));
+        e.target.value = v; cur[i] = v;
+        evInputs.forEach((x, k) => { x.max = evCap(cur, k); });
+        onEv(i, v, want > v);
+      } });
+      evInputs.push(ev);
+      g.append(
+        h('span', { class: 'name' + mark(i), title: mark(i) === ' up' ? 'Raised by nature' : mark(i) === ' down' ? 'Lowered by nature' : '' }, s),
+        h('input', { id: `${idp}-iv${i}`, type: 'number', min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => {
+          const v = Math.max(0, Math.min(31, Math.round(+e.target.value) || 0)); e.target.value = v; onIv(i, v);
+        } }),
+        ev,
+        h('span', { class: 'val' }, values ? values[i] : ''));
+    });
     return g;
   }
   function statsTab(r) {
@@ -487,13 +519,13 @@
     return [
       statsGrid(ivs, evs, M.nature(r),
         (i, v) => { const x = M.ivs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} IV to ${v}`, () => M.setIvs(r, x), { full: true }); },
-        (i, v) => { const x = M.evs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} EV to ${v}`, () => M.setEvs(r, x), { full: true }); },
+        (i, v, capped) => { const x = M.evs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} EV to ${v}`, () => M.setEvs(r, x), { full: true }); if (capped) status(evCapNote(i, v)); },
         M.partyStats(r), 'ed'),
       h('div', { class: 'row' },
         h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Set perfect IVs', () => M.setIvs(r, [31, 31, 31, 31, 31, 31]), { full: true }) }, 'Max IVs'),
         h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Cleared EVs', () => M.setEvs(r, [0, 0, 0, 0, 0, 0]), { full: true }) }, 'Clear EVs'),
         h('span', { class: 'grow' }),
-        h('span', { class: total > 510 ? 'warn' : 'note' }, `EV total ${total}/510${total > 510 ? ' — above the normal limit' : ''}`)),
+        h('span', { class: total > C.EV_TOTAL ? 'warn' : 'note' }, `EV total ${total}/${C.EV_TOTAL}${total > C.EV_TOTAL ? ' — above the normal limit' : ''}`)),
       M.partyStats(r) ? h('div', { class: 'row' }, h('span', { class: 'note grow' }, 'The Stat column shows the party stats stored in the save.'),
         h('button', { class: 'btn small', type: 'button', onclick: () => {
           const before = M.partyStats(r).join();
@@ -580,6 +612,14 @@
             try {
               const { opts, warnings } = C.fromShowdown(D, sd.value, X);
               if (!addable(opts.species)) throw new Error(`${spName(opts.species)} cannot be added (battle-only form or missing level data).`);
+              if (!hax && X.species[opts.species]) {
+                const set = C.learnable(X, opts.species), cut = [...new Set(opts.moves.filter(m => m && !set.has(m)))];
+                if (cut.length) warnings.push(`${spName(opts.species)} can't learn ${cut.map(m => D.moves[m]).join(', ')} in Radical Red, so ${cut.length > 1 ? 'they were' : 'it was'} left out (RadicalHaX mode keeps ${cut.length > 1 ? 'them' : 'it'}).`);
+                opts.moves = packMoves(opts.moves, set);
+                if (!opts.moves.some(x => x)) opts.moves = startMoves(opts.species, opts.level);
+                const ev = C.clampEvs(opts.evs);
+                if (ev.join() !== opts.evs.join()) { warnings.push(`EVs were lowered to the game's limits (${C.EV_CAP} per stat, ${C.EV_TOTAL} in total).`); opts.evs = ev; }
+              }
               Object.assign(d, opts, { text: sd.value });
               status(warnings.length ? 'Set loaded. ' + warnings.join(' ') : 'Set loaded. Check it and press Add.', warnings.length ? '' : 'ok');
             } catch (e) { status(e.message, 'err'); }
@@ -590,6 +630,7 @@
           onPick: id => {
             d.species = id; d.gender = null;
             if (X.species[id] && !X.species[id].ab[d.ability]) d.ability = 0; // the new species has no such ability
+            if (!hax && X.species[id]) d.moves = packMoves(d.moves, C.learnable(X, id)); // keep only moves the new species can learn
             if (!d.moves.some(x => x)) d.moves = startMoves(id, d.level);
             rerender();
           } }), ' wide'),
@@ -608,12 +649,18 @@
         h('label', { class: 'check' }, h('input', { id: 'add-shiny', type: 'checkbox', checked: d.shiny, onchange: e => { d.shiny = e.target.checked; rerender(); } }), '★ Shiny'),
         field('Ability', h('select', { id: 'add-ability', disabled: !d.species, onchange: e => { d.ability = +e.target.value; } },
           d.species ? abilityOptions(d.species, d.ability) : h('option', {}, 'Choose a species first'))),
-        ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: moveOpts(), none: 'None', kind: 'moves',
-          onPick: id => { d.moves[i] = id; rerender(); } })))),
-      statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v) => { d.evs[i] = v; }, null, 'add'),
+        ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: d.species ? moveChoices(d.species, d.moves, i) : [], none: d.species ? 'None' : null, kind: 'moves',
+          disabled: !d.species, placeholder: 'Choose a species first', onPick: id => { d.moves[i] = id; rerender(); } }))),
+        d.species ? h('p', { class: 'note', style: 'grid-column:1 / -1' }, moveNote(d.species)) : null),
+      statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add'),
       h('div', { class: 'row', style: 'border-top:1px solid var(--line);padding-top:12px' },
         h('button', { class: 'btn primary', type: 'button', onclick: create }, 'Add to box'),
         h('button', { class: 'btn', type: 'button', onclick: () => { draft = newDraft(); rerender(); } }, 'Clear form'))];
+  }
+  // Keeps the moves in the set, without duplicates, moved up to fill the first slots.
+  function packMoves(moves, set) {
+    const kept = moves.filter((m, i) => m && set.has(m) && moves.indexOf(m) === i);
+    return [0, 1, 2, 3].map(i => kept[i] || 0);
   }
   // The last four level-up moves it knows by its level, like a wild Pokémon. Megas and other form changes use their base form's.
   function startMoves(id, level) {

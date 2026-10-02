@@ -143,6 +143,8 @@ for (const file of process.argv.slice(2)) {
     M.setEvs(r, [252, 252, 252, 0, 0, 0]);
     const errs = C.legality(D, X, r).filter(p => p.level === 'error').map(p => p.field).sort();
     assert.deepStrictEqual(errs, ['evs', 'move1', 'moves']);
+    M.setMoves(r, [D.moves.indexOf('Earthquake'), D.moves.indexOf('Dragon Claw'), 0, 0], D); M.setEvs(r, [255, 0, 0, 0, 0, 0]);
+    assert.deepStrictEqual(C.legality(D, X, r).filter(p => p.level === 'error').map(p => p.field), ['evs'], 'one EV above 252');
     M.setSpecies(r, D.species.findIndex(x => x.n === 'Charizard-Mega-X'));
     assert.ok(C.legality(D, X, r).some(p => p.field === 'species' && p.level === 'error'), 'battle-only form');
   });

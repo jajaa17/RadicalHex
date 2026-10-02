@@ -29,6 +29,10 @@ for (let n = 0; n < 25; n++) for (const shiny of [true, false]) {
 }
 // Every item has its icon.
 for (let i = 1; i < D.items.length; i++) if (D.items[i] && C.validItem(D, i)) assert.ok(fs.existsSync(path.join(root, `src/assets/items/${i}.png`)), `icon for ${D.items[i]}`);
+// EV limits: 252 per stat, 510 in total, filled in stat order.
+assert.deepStrictEqual(C.clampEvs([252, 6, 25662, 0, 0, 0]), [252, 6, 252, 0, 0, 0]);
+assert.deepStrictEqual(C.clampEvs([252, 252, 252, 0, 0, 0]), [252, 252, 6, 0, 0, 0]);
+assert.deepStrictEqual(C.clampEvs([4, 0, 0, 252, 0, 252]), [4, 0, 0, 252, 0, 252]);
 console.log('static checks passed');
 
 // RadicalDex data: every reference points at a species the editor knows.
