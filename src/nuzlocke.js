@@ -2,7 +2,7 @@
 // locations still open for an encounter, and owned evolution families for the dupes clause.
 window.RHNuzlocke = function (ui) {
   'use strict';
-  const { h, sprite, D } = ui, X = window.RH_DEX, C = window.RHCore, M = C.mon;
+  const { h, put, sprite, D } = ui, X = window.RH_DEX, C = window.RHCore, M = C.mon;
   const WILD_METHODS = X.methods.map((m, i) => (/Grass|Surfing|Rock Smash|Rod/.test(m) ? i : -1)).filter(i => i >= 0);
   const norm = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 
@@ -56,7 +56,7 @@ window.RHNuzlocke = function (ui) {
     const fam = new Map();
     for (const m of mons) { const x = X.species[M.species(m.r)]; if (x) fam.set(x.anc, (fam.get(x.anc) || 0) + 1); }
 
-    pane.replaceChildren(
+    put(pane,
       h('div', { class: 'cards' },
         h('section', { class: 'card' }, h('h3', {}, 'Level cap'),
           h('div', { class: 'form', style: 'grid-template-columns:1fr' },

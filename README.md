@@ -21,20 +21,24 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 ## Features
 
 ### Boxes
-- All 25 boxes (23–25 unlock in the game as your PC fills up) with normal and shiny sprites, a star for shinies, a mark for perfect IVs and a dot for held items
-- Add a new Pokémon to any empty slot: species, level, nature, gender, shiny, held item, Poké Ball, friendship, hidden ability, moves, IVs and EVs
+- All 25 boxes (23–25 unlock in the game as your PC fills up) with normal and shiny sprites, a star for shinies, a mark for perfect IVs and the icon of each held item
+- Add a new Pokémon to any empty slot: species, level, nature, gender, shiny, held item, Poké Ball, friendship, ability, moves, IVs and EVs
 - Paste a Pokémon Showdown set to fill in a new Pokémon, or copy any Pokémon as a Showdown set
 - Drag to move or swap Pokémon, clone them, release them
 - Max IVs on every Pokémon in one click
 
 ### Party
+![The Party tab with held items](docs/screenshot-party.png)
+
 - Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves
 - **Heal**: restore HP (fainted Pokémon included), cure poison, burn, sleep, freeze and paralysis, and refill PP, for one Pokémon or the whole party
 - Edit them like any other Pokémon, or copy them into a box. Their battle stats update automatically when you change level, nature, IVs or EVs
 
 ### Editing a Pokémon
-- Species, nickname, level, nature, gender, shininess, held item, Poké Ball, friendship, hidden ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
+- Species, nickname, level, nature, gender, shininess, held item, Poké Ball, friendship, ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
+- **Ability** is a dropdown like PKHeX's, listing the species' own abilities by name: ability 1, ability 2 (if it has one) and its hidden ability (H). Changing it keeps the nature, shininess and gender, like the game does when it changes an ability
 - Origin details: original trainer, IDs, met location and level
+- Items show Radical Red's own bag icons everywhere: held items, the bag and every item list
 - Every list (species, items, moves, bag) opens as a list you can browse by scrolling, by clicking a letter (A–Z), or with Page up and Page down buttons. Typing to filter is optional, and nothing needs a scroll wheel.
 
 ### Legality check and RadicalHaX mode
@@ -44,6 +48,8 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - **RadicalHaX mode** (the button in the top bar) is the PKHaX-style mode: legality checks are off and anything goes, including Megas and other battle-only forms. The save safety checks below always stay on, so the file itself can't be damaged
 
 ### Trainer & Bag
+![The Trainer & Bag tab with item icons](docs/screenshot-bag.png)
+
 - Money and Game Corner coins
 - The whole bag: Items, Key Items, Poké Balls, TMs & HMs and Berries, with "add every TM/HM, ball or berry"
 - Pokédex counts, and one click to register every Pokémon you own
@@ -53,7 +59,7 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 
 A Pokédex built from Radical Red's own data, so it matches the hack rather than the official games:
 - Every species and form, with sprites, filter by name, number or type, and "only Pokémon in my save"
-- Types, base stats and abilities as they are in Radical Red
+- Types, base stats and abilities (ability 1, ability 2 and hidden ability) as they are in Radical Red
 - **Where to find it:** every location, method (grass by day or night, surfing, fishing rods, Rock Smash, gifts, trades, overworld, roaming, raids), levels and encounter chance
 - **Evolution tree** with Radical Red's evolution methods
 - **Mega Evolutions and form changes**, such as Primal Groudon with the Red Orb
@@ -93,7 +99,7 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 Good to know:
 - New Pokémon go into boxes. Withdraw them in the game to use them in your party.
 - Party Pokémon store their battle stats separately. RadicalHex recalculates them for you when you edit a party Pokémon, and the Stats tab has a **Recalculate stats** button.
-- Radical Red sets abilities by species, so RadicalHex shows the ability slot and lets you turn the hidden ability on or off.
+- Like the main games, a Pokémon in Radical Red has ability 1, ability 2 or its hidden ability, and RadicalHex lets you pick any of the ones its species has.
 
 ## Reporting a problem
 
@@ -118,15 +124,18 @@ The data files are generated, in this order, from the sources listed below:
 ```sh
 node tools/build-dex.js <sources>        # src/dex.js and tools/rr-tables.json
 python3 tools/build-data.py <sources>    # src/data.js and the sprites
+python3 tools/build-items.py <sources>   # the item icons
 ```
 
 The top of each script lists which repositories go in the `<sources>` folder.
+
+The screenshots in `docs` are made from a demo save with `npx electron tools/screenshots.js`.
 
 ## Credits
 
 - [PKHeX](https://github.com/kwsch/PKHeX) by Kaphotics and contributors, the save editor RadicalHex is modeled after
 - [PKForge](https://github.com/sofianeelhor/PKForge) by sofianeelhor, whose Radical Red engine documents the save layout RadicalHex follows, and whose Radical Red 4.1 species and item tables come from [Rad-Red-4.1-Team-Exporter](https://github.com/eliyahu1702/Rad-Red-4.1-Team-Exporter)
-- The official [Radical Red Pokédex](https://dex.radicalred.net) ([source](https://github.com/JwowSquared/Radical-Red-Pokedex)) for species data, evolutions, locations, moves, items and level caps used by the RadicalDex and Nuzlocke tools
+- The official [Radical Red Pokédex](https://dex.radicalred.net) ([source](https://github.com/JwowSquared/Radical-Red-Pokedex)) for species data, abilities, evolutions, locations, moves, items, item icons and level caps
 - [pret/pokefirered](https://github.com/pret/pokefirered) for FireRed's location names
 - [Complete Fire Red Upgrade](https://github.com/Skeli789/Complete-Fire-Red-Upgrade), the engine Radical Red is built on
 - Radical Red's own `Base_Stats.c` (from the history of [Ydarissep/Radical-Red-Pokedex](https://github.com/Ydarissep/Radical-Red-Pokedex)) for experience growth rates

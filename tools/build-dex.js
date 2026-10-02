@@ -47,7 +47,9 @@ for (const [id, s] of Object.entries(species)) {
   outSpecies[id] = {
     t: [...new Set(s.type)],
     st: statOrder(s.stats),
-    ab: s.abilities.map(a => a[0]),
+    // The dex stores abilities as [hidden, first, second], each [ability id, which of its names this species shows].
+    // Saved here in the game's slot order: [first, second, hidden], by name ('' = none).
+    ab: [s.abilities[1], s.abilities[2], s.abilities[0]].map(([a, n]) => (a ? abilities[a].names[n] : '')),
     nat: s.dexID,
     anc: s.ancestor,
     evo: (s.evolutions || []).filter(e => species[e[2]]).map(e => [e[2], evoText(e), e[0] === 254 ? 1 : 0]),
@@ -102,7 +104,7 @@ for (const a of d.areas) {
 }
 
 // Met location names (FireRed map sections, numbered from 0; Kanto starts at 88).
-const title = s => s.toLowerCase().replace(/(^|[\s.\-'])([a-zé])/g, (m, p, c) => p + c.toUpperCase());
+const title = s => s.toLowerCase().replace(/(^|[\s.\-])([a-zé])/g, (m, p, c) => p + c.toUpperCase());
 const metNames = {};
 mapsecs.forEach((m, i) => { if (m.name && i >= 88) metNames[i] = title(m.name); });
 metNames[253] = 'Hatched from an Egg';
@@ -115,7 +117,6 @@ const caps = Object.entries(d.caps).sort((a, b) => a[1].ID - b[1].ID).map(([n, c
 
 const dex = {
   types: Object.values(types).sort((a, b) => a.ID - b.ID).map(t => ({ id: t.ID, n: t.name, c: t.color })),
-  abilities: Object.fromEntries(Object.values(abilities).map(a => [a.ID, a.names[0]])),
   species: outSpecies,
   areas, methods, enc, metNames, caps,
 };

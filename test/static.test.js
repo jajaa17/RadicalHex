@@ -27,6 +27,8 @@ for (let n = 0; n < 25; n++) for (const shiny of [true, false]) {
   const pid = C.solvePid({ otid: 0x75CF0AFE, nature: n, shiny }), x = (0x75CF0AFE ^ pid) >>> 0;
   assert.strictEqual(pid % 25, n); assert.strictEqual(((x & 0xFFFF) ^ (x >>> 16)) < 16, shiny);
 }
+// Every item has its icon.
+for (let i = 1; i < D.items.length; i++) if (D.items[i] && C.validItem(D, i)) assert.ok(fs.existsSync(path.join(root, `src/assets/items/${i}.png`)), `icon for ${D.items[i]}`);
 console.log('static checks passed');
 
 // RadicalDex data: every reference points at a species the editor knows.
@@ -44,4 +46,34 @@ for (const [sp, rows] of Object.entries(X.enc)) for (const r of rows) {
   assert.ok(X.species[sp] && X.areas[r[0]] && X.methods[r[1]], `encounter row for ${sp}`);
   if (r[2] != null) assert.ok(r[2] > 0 && r[2] <= 100 && r[3] <= r[4], `encounter odds/levels for ${sp}`);
 }
+// Abilities are [ability 1, ability 2, hidden] by name. Spot checks against Radical Red: Espeon's hidden ability is Magic Bounce.
+for (const [id, s] of Object.entries(X.species)) assert.ok(s.ab.length === 3 && s.ab[0] && s.ab.every(a => typeof a === 'string'), `abilities of ${id}`);
+const byName = n => X.species[D.species.findIndex(s => s && s.n === n)];
+assert.deepStrictEqual(byName('Espeon').ab, ['Synchronize', '', 'Magic Bounce']);
+assert.deepStrictEqual(byName('Garchomp').ab, ['Sand Veil', '', 'Rough Skin']);
+assert.deepStrictEqual(byName('Eevee').ab, ['Run Away', 'Adaptability', '']);
+// Changing the ability keeps nature, shininess and gender, and the game sees the chosen slot.
+const M = C.mon, eevee = D.species.findIndex(s => s && s.n === 'Eevee'), otid = 0x75CF0AFE;
+for (let n = 0; n < 25; n++) for (const shiny of [true, false]) for (const gender of [0, 1]) {
+  const m = { buf: new Uint8Array(58), off: 0, party: false };
+  M.setSpecies(m, eevee);
+  for (let k = 0; k < 4; k++) m.buf[4 + k] = (otid >>> (8 * k)) & 255;
+  M.setPid(m, C.solvePid({ otid, nature: n, shiny, gender, ratio: C.genderRatio(D, eevee) }));
+  for (const i of [1, 0, 2, 1, 0]) {
+    C.setAbility(D, m, i);
+    assert.strictEqual(M.abilityIndex(m), i); assert.strictEqual(M.nature(m), n); assert.strictEqual(M.shiny(m), shiny); assert.strictEqual(C.genderOf(D, m), gender);
+    // Eevee has no hidden ability, so the game falls back to the personality's slot.
+    assert.strictEqual(C.abilityName(X, m), ['Run Away', 'Adaptability'][i < 2 ? i : M.pid(m) & 1]);
+  }
+}
+// Rerolling the PID keeps Unown's letter and Minior's core, which the game also reads from it.
+for (const [name, form] of [['Unown', p => ((((p >>> 24) & 3) << 6) | (((p >>> 16) & 3) << 4) | (((p >>> 8) & 3) << 2) | (p & 3)) % 28], ['Minior', p => p % 7]]) {
+  const m = { buf: new Uint8Array(58), off: 0, party: false };
+  M.setSpecies(m, D.species.findIndex(s => s && s.n === name));
+  M.setPid(m, 0x12345678);
+  const want = form(M.pid(m));
+  for (let n = 0; n < 25; n++) { C.setNatureShiny(m, n, n % 3 === 0, D); assert.strictEqual(form(M.pid(m)), want, `${name} form after nature ${n}`); assert.strictEqual(M.nature(m), n); }
+}
+const set = C.fromShowdown(D, 'Espeon @ Leftovers\nAbility: Magic Bounce\n- Psychic', X);
+assert.strictEqual(set.opts.ability, 2); assert.strictEqual(set.warnings.length, 0);
 console.log('dex checks passed');

@@ -5,7 +5,6 @@ window.RHDexView = function (ui) {
   const { h, sprite, D } = ui, X = window.RH_DEX;
   const C = window.RHCore;
   const name = id => (D.species[id] && D.species[id].n) || `#${id}`;
-  const ability = id => X.abilities[id] || `#${id}`;
   const all = Object.keys(X.species).map(Number).filter(id => D.species[id] && D.species[id].n)
     .sort((a, b) => X.species[a].nat - X.species[b].nat || a - b);
   const squash = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
@@ -100,7 +99,7 @@ window.RHDexView = function (ui) {
     const where = own.bySpecies.get(id) || [];
     const sv = ui.save();
     const dexState = sv && s.nat <= 1000 ? (C.dex.caught(sv, s.nat) ? 'Caught' : C.dex.seen(sv, s.nat) ? 'Seen' : 'Not seen') : null;
-    const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, ability(a))) : null));
+    const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, a)) : null));
     return h('div', { class: 'dex-detail' },
       h('div', { class: 'dex-hero' },
         sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144),
