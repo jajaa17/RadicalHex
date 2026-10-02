@@ -12,6 +12,8 @@
 
 Download **RadicalHex.exe** from the [Releases page](https://github.com/jajaa17/RadicalHex/releases) and run it. There is nothing to install.
 
+**Put RadicalHex.exe in its own folder** (for example `C:\Games\RadicalHex`) before running it. RadicalHex makes a **`Backups`** folder next to the .exe and keeps a copy of your save there every time you open or save. If you move the .exe, move the `Backups` folder with it. If that folder can't be written to (such as inside Program Files), backups go to `Documents\RadicalHex\Backups` instead.
+
 The app is not code-signed, so Windows SmartScreen may say "Windows protected your PC". Click **More info → Run anyway**.
 
 Every release also includes the full source code (zip and tar.gz), so anyone can check it or build it themselves. See [Building from source](#building-from-source).
@@ -80,7 +82,7 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - Settings are remembered per trainer
 
 ### Safety
-- A backup is saved to `Documents\RadicalHex\Backups` every time you open a save and right before every save. Restore any of them from the **Backups** tab.
+- A backup is saved to the `Backups` folder next to RadicalHex.exe every time you open a save and right before every save. Restore any of them from the **Backups** tab, which also lists backups made by versions before 1.0.5 (those were kept in `Documents\RadicalHex\Backups`).
 - Every save is checked before it is written. RadicalHex rebuilds the file, reloads it, makes sure only the parts it is allowed to edit changed, and validates every Pokémon and bag entry you touched. If anything is off, nothing is written.
 - Files are written to a temporary file first, verified, then swapped in.
 - Only the newest save slot is edited, so the game's previous save stays as a fallback.
@@ -105,7 +107,7 @@ Good to know:
 
 ## Reporting a problem
 
-If you find any issue, please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose) and pick **Bug report**, **Save problem**, **Wrong game data** or **Feature request**. Your original save is always in the Backups folder, so attaching it is safe.
+If you find any issue, please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose) and pick **Bug report**, **Save problem**, **Wrong game data** or **Feature request**. Your original save is always in the `Backups` folder next to RadicalHex.exe, so attaching it is safe.
 
 ## Building from source
 

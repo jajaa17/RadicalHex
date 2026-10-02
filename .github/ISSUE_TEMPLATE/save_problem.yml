@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Your original file is in `Documents\RadicalHex\Backups`. You can put it back from the **Backups** tab, so nothing is lost.
+        Your original file is in the `Backups` folder next to RadicalHex.exe (versions before 1.0.5 used `Documents\RadicalHex\Backups`). You can put it back from the **Backups** tab, so nothing is lost.
   - type: input
     id: version
     attributes:
