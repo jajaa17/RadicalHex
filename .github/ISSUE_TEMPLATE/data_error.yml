@@ -1,0 +1,24 @@
+name: Wrong game data
+description: The RadicalDex or Nuzlocke tools show a wrong location, evolution, level cap, stat or name.
+title: "[Data] "
+labels: ["bug"]
+body:
+  - type: input
+    id: pokemon
+    attributes:
+      label: Pokémon, item or move
+      placeholder: "Eevee"
+    validations:
+      required: true
+  - type: textarea
+    id: wrong
+    attributes:
+      label: What is wrong?
+      description: What RadicalHex shows, and what the game or the official Radical Red docs say.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Where can this be checked?
+      placeholder: "Seen in game on Route 5 / official location doc / dex.radicalred.net"

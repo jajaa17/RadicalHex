@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest something RadicalHex should do.
+title: "[Idea] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like RadicalHex to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: How would you use it?
+      description: A short example of when this would help.

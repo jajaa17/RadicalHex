@@ -1,0 +1,43 @@
+name: Save problem
+description: A save won't open, or something in the game changed in a way you did not expect after saving.
+title: "[Save] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Your original file is in `Documents\RadicalHex\Backups`. You can put it back from the **Backups** tab, so nothing is lost.
+  - type: input
+    id: version
+    attributes:
+      label: RadicalHex version
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - The save does not open in RadicalHex
+        - The game does not load the edited save
+        - Something in the game is different from what I set
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What did you change, and what happened?
+    validations:
+      required: true
+  - type: input
+    id: emulator
+    attributes:
+      label: Emulator
+      placeholder: "mGBA 0.10.3, RetroArch with the mGBA core, ..."
+  - type: textarea
+    id: files
+    attributes:
+      label: Save files
+      description: If you can, attach the original save from the Backups folder and the edited one, zipped together.
