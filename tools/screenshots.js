@@ -31,7 +31,6 @@ function demoSave() {
     ['Gyarados', 62, 'Jolly', 'Heavy-Duty Boots', ['Waterfall', 'Bounce', 'Dragon Dance', 'Earthquake'], 0, 'Route 6'],
     ['Venusaur', 60, 'Bold', 'Black Sludge', ['Giga Drain', 'Sludge Bomb', 'Leech Seed', 'Synthesis'], 2, 'Pallet Town'],
   ];
-  w32(0x1000 + 0x34, party.length);
   for (let id = 0; id < 14; id++) {
     const o = id * 0x1000;
     w16(o + 0xFF4, id); w32(o + 0xFF8, 0x08012025); w32(o + 0xFFC, 40);
@@ -46,17 +45,8 @@ function demoSave() {
     ref.buf[ref.off + 0x33] = met(place); ref.buf[ref.off + 0x34] = (ref.buf[ref.off + 0x34] & 0x80) | Math.min(level, 40);
     return ref;
   };
-  // Party: built in a spare box slot, then laid out in the 100-byte party form like the game's withdraw.
-  party.forEach((p, i) => {
-    const src = add(24, 29, p), dst = C.partyRef(sv, i);
-    dst.buf.fill(0, dst.off, dst.off + 100);
-    dst.buf.set(src.buf.subarray(src.off, src.off + 0x1C), dst.off);
-    M.setSpecies(dst, M.species(src)); M.setItem(dst, M.item(src)); M.setExp(dst, M.exp(src));
-    M.setFriendship(dst, 255); M.setBall(dst, M.ball(src)); M.setMoves(dst, M.moves(src), D); M.setEvs(dst, M.evs(src));
-    dst.buf.set(src.buf.subarray(src.off + 0x32, src.off + 0x3A), dst.off + 0x44); // met data and IVs
-    C.setLevel(D, dst, C.levelOf(D, src)); C.recalcStats(D, X, dst); C.heal(D, dst);
-    C.release(src);
-  });
+  // Party: made in a spare box slot, then withdrawn like in the game.
+  party.forEach(p => C.withdraw(sv, D, X, add(24, 29, p)));
   const box1 = [
     ['Garchomp', 58, 'Jolly', 'Choice Scarf', ['Earthquake', 'Outrage', 'Stone Edge', 'Fire Fang'], 2, 'Victory Road'],
     ['Golisopod', 54, 'Adamant', 'Assault Vest', ['First Impression', 'Liquidation', 'Leech Life', 'Knock Off'], 0, 'Route 19'],

@@ -311,7 +311,7 @@
         h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 25 boxes' }, 'Max IVs on everything')),
       grid,
       box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
-      h('p', { class: 'note' }, 'Drag a Pokémon onto another box slot to move or swap it. Click an empty box slot to add a new Pokémon.'));
+      h('p', { class: 'note' }, 'Drag a Pokémon onto another slot to move or swap it. "Move to box" and "Move to party" in the editor send it further. Click an empty slot to add a new Pokémon.'));
   }
 
   function healParty() {
@@ -328,7 +328,11 @@
     const n = C.partyCount(sv), cards = [];
     for (let s = 0; s < 6; s++) {
       const r = s < n ? C.partyRef(sv, s) : null;
-      if (!filled(r)) { cards.push(h('div', { class: 'pcard empty' }, h('span', { class: 'muted' }, 'Empty party slot'))); continue; }
+      if (!filled(r)) {
+        cards.push(h('button', { type: 'button', class: 'pcard empty' + (sel.party && sel.slot === s ? ' sel' : ''), title: 'Add a Pokémon to your party', onclick: () => select(true, 0, s) },
+          h('span', { class: 'muted' }, '＋ Add a Pokémon')));
+        continue;
+      }
       const sp = M.species(r), st = M.partyStats(r), hp = r.buf[r.off + 0x56] | (r.buf[r.off + 0x57] << 8);
       const pct = st[0] ? Math.max(0, Math.min(100, Math.round(hp / st[0] * 100))) : 0;
       cards.push(h('button', { type: 'button', class: 'pcard' + (sel.party && sel.slot === s ? ' sel' : ''), onclick: () => select(true, 0, s) },
@@ -346,7 +350,7 @@
       h('div', { class: 'row' }, h('div', { class: 'section-title' }, `Party (${n}/6)`), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', disabled: !n, title: 'Restore HP, cure status conditions and refill PP for every party Pokémon', onclick: healParty }, 'Heal party')),
       h('div', { class: 'party-cards' }, cards),
-      h('p', { class: 'note' }, 'Click a Pokémon to edit it. Party members are added and removed in the game; Pokémon you add with RadicalHex go into a box.'));
+      h('p', { class: 'note' }, 'Click a Pokémon to edit it, or an empty slot to add one. "Move to box" in the editor puts a party Pokémon in a box.'));
   }
   // Lists every illegal Pokémon in the save; clicking jumps to the next one.
   function illegalButton() {
@@ -404,8 +408,8 @@
     if (!sv) { ed.replaceChildren(); return; }
     const r = selRef();
     if (!filled(r)) {
-      if (sel.party) { ed.replaceChildren(h('div', { class: 'empty-ed' }, h('h3', {}, 'Empty party slot'), h('p', {}, 'Add Pokémon to a box, then withdraw them in the game.'))); return; }
-      ed.replaceChildren(...addForm().filter(Boolean));
+      // An empty party slot adds to the end of the party (the game keeps the party packed).
+      put(ed, addForm());
       return;
     }
     const tabs = [['main', 'Main'], ['moves', 'Moves'], ['stats', 'Stats'], ['origin', 'Origin'], ['showdown', 'Showdown']];
@@ -578,6 +582,27 @@
     for (let k = 0; k < C.BOXES; k++) { const b = (startBox + k) % C.BOXES; for (let s = 0; s < C.SLOTS; s++) if (!filled(C.boxRef(sv, b, s))) return [b, s]; }
     return null;
   }
+  const firstEmptyIn = b => { for (let s = 0; s < C.SLOTS; s++) if (!filled(C.boxRef(sv, b, s))) return s; return -1; };
+  // "Move to box…": any other box with room (a party Pokémon can go to any box). It goes into that box's first empty slot.
+  function moveToBox(r) {
+    const name = M.nickname(r) || spName(M.species(r));
+    return h('select', { id: 'ed-movebox', 'aria-label': 'Move to another box', title: 'Move this Pokémon to the first empty slot of another box', onchange: e => {
+      if (e.target.value === '') return;
+      const b = +e.target.value, s = firstEmptyIn(b);
+      if (s < 0) { status(`${C.boxName(sv, b)} is full.`, 'err'); renderEditor(); return; }
+      const what = `Moved ${name} to ${C.boxName(sv, b)}`;
+      if (sel.party) {
+        const i = sel.slot;
+        if (change(what, () => C.deposit(sv, D, i, C.boxRef(sv, b, s)), { full: true })) { box = b; setTab('boxes'); select(false, b, s); }
+        else renderEditor(); // put the list back on "Move to box…"
+      } else if (change(what, () => C.swap(r, C.boxRef(sv, b, s)), { full: true })) select(false, b, s);
+      else renderEditor();
+    } }, h('option', { value: '' }, 'Move to box…'),
+    Array.from({ length: C.BOXES }, (_, b) => b).filter(b => sel.party || b !== sel.box).map(b => {
+      const n = boxCount(b);
+      return h('option', { value: b, disabled: n >= C.SLOTS }, `${C.boxName(sv, b)} (${n}/${C.SLOTS})${n >= C.SLOTS ? ' full' : ''}`);
+    }));
+  }
   function actionsRow(r) {
     const row = h('div', { class: 'row', style: 'border-top:1px solid var(--line);padding-top:12px' });
     const target = firstEmpty(sel.party ? box : sel.box);
@@ -586,6 +611,7 @@
         const [b, s] = target;
         if (change(`Copied to ${C.boxName(sv, b)}`, () => C.copyToBox(D, r, C.boxRef(sv, b, s)))) select(false, b, s);
       } }, 'Copy to a box'));
+      row.append(moveToBox(r));
       const st = C.partyStatus(r);
       row.append(h('button', { class: 'btn', type: 'button', title: 'Restore HP, cure status conditions and refill PP', onclick: () => {
         if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true, sfx: 'heal' })) status(`${M.nickname(r)} is already fully healed.`);
@@ -595,6 +621,11 @@
         const [b, s] = target;
         if (change(`Cloned to ${C.boxName(sv, b)} slot ${s + 1}`, () => C.copyToBox(D, r, C.boxRef(sv, b, s)))) select(false, b, s);
       } }, 'Clone'));
+      const full = C.partyCount(sv) >= 6;
+      row.append(h('button', { class: 'btn', type: 'button', disabled: full, title: full ? 'Your party is full (6 Pokémon)' : 'Move this Pokémon to the end of your party', onclick: () => {
+        let i = -1;
+        if (change(`Moved ${M.nickname(r) || spName(M.species(r))} to the party`, () => { i = C.withdraw(sv, D, X, r); }, { full: true })) { setTab('party'); select(true, 0, i); }
+      } }, 'Move to party'), moveToBox(r));
       const rel = h('button', { class: 'btn danger', type: 'button', onclick: () => {
         if (!rel.classList.contains('armed')) { rel.classList.add('armed'); rel.textContent = 'Click again to release'; return; }
         const name = M.nickname(r);
@@ -623,7 +654,7 @@
     const sd = h('textarea', { id: 'add-sd', rows: 7, placeholder: 'Garchomp @ Choice Scarf\nLevel: 50\nJolly Nature\nEVs: 252 Atk / 4 SpD / 252 Spe\n- Earthquake\n- Outrage\n- Stone Edge\n- Fire Fang' }, d.text);
     return [
       h('div', { class: 'hero' }, addPic,
-        h('div', {}, h('div', { class: 'hero-name' }, h('h2', {}, 'Add a Pokémon'), d.species ? cryButton(d.species, addPic) : null), h('div', { class: 'sub' }, `${C.boxName(sv, sel.box)}, slot ${sel.slot + 1}`),
+        h('div', {}, h('div', { class: 'hero-name' }, h('h2', {}, 'Add a Pokémon'), d.species ? cryButton(d.species, addPic) : null), h('div', { class: 'sub' }, sel.party ? `Party slot ${C.partyCount(sv) + 1}` : `${C.boxName(sv, sel.box)}, slot ${sel.slot + 1}`),
           h('p', { class: 'note', style: 'margin-top:6px' }, 'It will belong to you, met at Pallet Town, in the ball you choose.'))),
       h('details', { open: !!d.text }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Paste a Showdown set'),
         h('div', { style: 'display:grid;gap:8px;margin-top:8px' }, sd,
@@ -674,7 +705,7 @@
         d.species ? h('p', { class: 'note', style: 'grid-column:1 / -1' }, moveNote(d.species)) : null),
       statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add'),
       h('div', { class: 'row', style: 'border-top:1px solid var(--line);padding-top:12px' },
-        h('button', { class: 'btn primary', type: 'button', onclick: create }, 'Add to box'),
+        h('button', { class: 'btn primary', type: 'button', onclick: create }, sel.party ? 'Add to party' : 'Add to box'),
         h('button', { class: 'btn', type: 'button', onclick: () => { draft = newDraft(); rerender(); } }, 'Clear form'))];
   }
   // Keeps the moves in the set, without duplicates, moved up to fill the first slots.
@@ -696,6 +727,11 @@
     if (!d.species) { status('Choose a species first.', 'err'); return; }
     if (!d.moves.some(x => x)) { status('Give it at least one move.', 'err'); return; }
     const name = spName(d.species);
+    if (sel.party) {
+      let i = -1;
+      if (change(`Added ${name} to the party`, () => { i = C.createInParty(sv, D, X, d); }, { full: true, sfx: 'ball' })) { draft = null; edTab = 'main'; select(true, 0, i); }
+      return;
+    }
     if (change(`Added ${name} to ${C.boxName(sv, sel.box)}`, () => C.createInBox(sv, D, C.boxRef(sv, sel.box, sel.slot), d), { full: true, sfx: 'ball' })) {
       draft = null;
       edTab = 'main';

@@ -220,6 +220,53 @@ for (const file of process.argv.slice(2)) {
     for (let i = 0; i < C.partyCount(sv); i++) assert.strictEqual(M.abilityIndex(C.partyRef(back, i)), M.abilityIndex(C.partyRef(sv, i)));
   });
 
+  t('party: deposit and withdraw like the game, add straight to the party, then save', () => {
+    const sv = fresh(), n = C.partyCount(sv);
+    assert.ok(n >= 1, 'save has a party');
+    const keep = r => [M.pid(r), M.otid(r), M.nickname(r), M.otName(r), M.species(r), M.item(r), M.exp(r), M.friendship(r), M.ball(r), M.moves(r).join(), M.evs(r).join(), M.ivWord(r), M.metLocation(r), M.metLevel(r), C.levelOf(D, r)].join('|');
+    const first = C.partyRef(sv, 0), before = keep(first), wasStats = M.partyStats(first).join();
+    const spot = (() => { for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) if (M.empty(C.boxRef(sv, b, s2))) return C.boxRef(sv, b, s2); })();
+    if (n === 1) assert.throws(() => C.deposit(sv, D, 0, spot), /last Pokémon/);
+    else {
+      const second = keep(C.partyRef(sv, 1));
+      C.deposit(sv, D, 0, spot);
+      assert.strictEqual(C.partyCount(sv), n - 1); assert.strictEqual(keep(C.partyRef(sv, 0)), second, 'the rest moved up');
+      assert.ok(M.empty(C.partyRef(sv, n - 1)), 'old last slot cleared');
+      assert.strictEqual(keep(spot), before, 'deposited Pokémon kept everything');
+      const i = C.withdraw(sv, D, X, spot);
+      assert.strictEqual(i, n - 1); assert.strictEqual(C.partyCount(sv), n); assert.ok(M.empty(spot), 'box slot emptied');
+      const back = C.partyRef(sv, i);
+      assert.strictEqual(keep(back), before, 'withdrawn Pokémon kept everything');
+      assert.strictEqual(M.partyStats(back).join(), wasStats, 'stats recalculated to the same values');
+      assert.strictEqual(back.buf[back.off + 0x56] | (back.buf[back.off + 0x57] << 8), M.partyStats(back)[0], 'full HP');
+      assert.strictEqual(C.partyStatus(back), ''); assert.strictEqual(back.buf[back.off + 0x55], 0xFF, 'no mail');
+      assert.ok(!C.heal(D, back), 'PP already full, like a fresh withdraw');
+    }
+    // Fill the party to 6 by adding straight to it, then a 7th is refused.
+    const sp = D.species.findIndex(x => x.n === 'Garchomp'), moves = [D.moves.indexOf('Earthquake'), D.moves.indexOf('Dragon Claw'), 0, 0];
+    while (C.partyCount(sv) < 6) {
+      const i = C.createInParty(sv, D, X, { species: sp, level: 50, nature: 3, shiny: false, moves, ability: 2 });
+      const r = C.partyRef(sv, i);
+      assert.strictEqual(M.level(r), 50); assert.strictEqual(C.abilityName(X, r), 'Rough Skin');
+      assert.deepStrictEqual(C.legality(D, X, r).filter(p => p.level !== 'info'), [], 'new party Pokémon is legal, stats included');
+    }
+    assert.throws(() => C.createInParty(sv, D, X, { species: sp, level: 50, nature: 3, moves }), /party is full/);
+    assert.throws(() => C.withdraw(sv, D, X, C.boxRef(sv, 0, 0)), /party is full|Pick a Pokémon/);
+    const back = C.load(C.build(sv, D));
+    assert.strictEqual(C.partyCount(back), 6);
+    // Deposit down to the last Pokémon and save again.
+    while (C.partyCount(back) > 1) { const dst = (() => { for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) if (M.empty(C.boxRef(back, b, s2))) return C.boxRef(back, b, s2); })(); C.deposit(back, D, 0, dst); }
+    assert.throws(() => C.deposit(back, D, 0, C.boxRef(back, 24, 29)), /last Pokémon|empty box slot/);
+    assert.strictEqual(C.partyCount(C.load(C.build(back, D))), 1);
+  });
+
+  t('the save guard refuses a party count with an empty slot under it', () => {
+    const sv = fresh(), n = C.partyCount(sv);
+    if (n >= 6) return;
+    sv.data[sv.sec[1] + 0x34] = n + 1; // a count that points at an empty slot
+    assert.throws(() => C.build(sv, D), /party slot/);
+  });
+
   t('every species marked addable has data and a valid nickname', () => {
     for (let i = 1; i < D.species.length; i++) {
       const s = D.species[i]; if (!s.n || !s.g) continue;

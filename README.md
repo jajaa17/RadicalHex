@@ -30,7 +30,8 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - All 25 boxes (23–25 unlock in the game as your PC fills up) with normal and shiny sprites, a star for shinies, a mark for perfect IVs and the icon of each held item
 - Add a new Pokémon to any empty slot: species, level, nature, gender, shiny, held item, Poké Ball, friendship, ability, moves, IVs and EVs
 - Paste a Pokémon Showdown set to fill in a new Pokémon, or copy any Pokémon as a Showdown set
-- Drag to move or swap Pokémon, clone them, release them
+- Drag to move or swap Pokémon within a box, clone them, release them
+- **Move to box** sends a Pokémon to the first free slot of any other box, and **Move to party** puts it at the end of your party
 - Max IVs on every Pokémon in one click
 
 ### Party
@@ -38,6 +39,8 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 
 - Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves
 - **Heal**: restore HP (fainted Pokémon included), cure poison, burn, sleep, freeze and paralysis, and refill PP, for one Pokémon or the whole party
+- **Add a Pokémon straight to your party**: click an empty party slot
+- **Move to box** puts a party Pokémon in a box, and the rest of the party moves up, like in the game. Your last Pokémon has to stay (eggs don't count)
 - Edit them like any other Pokémon, or copy them into a box. Their battle stats update automatically when you change level, nature, IVs or EVs
 
 ### Editing a Pokémon
@@ -111,7 +114,7 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 4. Load the save in your emulator.
 
 Good to know:
-- New Pokémon go into boxes. Withdraw them in the game to use them in your party.
+- New Pokémon can go into a box or straight into your party. A Pokémon moved into the party gets full HP and PP, the same as withdrawing it in the game.
 - Party Pokémon store their battle stats separately. RadicalHex recalculates them for you when you edit a party Pokémon, and the Stats tab has a **Recalculate stats** button.
 - Like the main games, a Pokémon in Radical Red has ability 1, ability 2 or its hidden ability, and RadicalHex lets you pick any of the ones its species has.
 

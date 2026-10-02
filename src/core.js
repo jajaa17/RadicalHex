@@ -127,7 +127,7 @@
   // File ranges RadicalHex is allowed to change. Anything else changing means a bug, and the save is refused.
   function allowedRanges(sv) {
     const s = sv.sec, r = [];
-    r.push([s[1] + 0x38, s[1] + 0x38 + 6 * PARTY_MON], [s[1] + 0x290, s[1] + 0x296], [s[1] + DEX_SEEN, s[1] + DEX_CAUGHT + DEX_BYTES]);
+    r.push([s[1] + 0x34, s[1] + 0x38 + 6 * PARTY_MON], [s[1] + 0x290, s[1] + 0x296], [s[1] + DEX_SEEN, s[1] + DEX_CAUGHT + DEX_BYTES]);
     for (const id of [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]) r.push([s[id] + 0xFF6, s[id] + 0xFF8]);
     for (let i = 0; i < EXT_SIZE; i++) { const f = extFile(s, i); if (r.length && r[r.length - 1][1] === f) r[r.length - 1][1]++; else r.push([f, f + 1]); }
     for (let id = 5; id <= 13; id++) r.push([s[id], s[id] + WIN[id]]);
@@ -167,6 +167,9 @@
         for (const it of now) if (!validItem(D, it.id) || it.qty < 1 || it.qty > 999) errors.push(`${p.name}: invalid entry (item ${it.id} ×${it.qty}).`);
       }
     }
+    // The game keeps its party packed: every slot below the party count holds a Pokémon.
+    if (check && partyCount(check) !== partyCount(load(sv.original)))
+      for (let i = 0; i < partyCount(check); i++) if (mon.empty(partyRef(check, i))) errors.push(`The party count is ${partyCount(check)} but party slot ${i + 1} is empty.`);
     if (errors.length) throw new Error('RadicalHex stopped the save to protect your file:\n' + errors.join('\n'));
     return out;
   }
@@ -286,7 +289,8 @@
     if (s & 0x40) return 'Paralyzed';
     return '';
   }
-  const maxPp = (D, move, ups) => { const base = D.pp[move] || 0; return base + Math.floor(base / 5) * ups; };
+  // The game's CalculatePPWithBonus: each PP Up adds 20% of the base PP, rounded down once at the end.
+  const maxPp = (D, move, ups) => { const base = D.pp[move] || 0; return base + Math.floor(base * 20 * ups / 100); };
   // Returns true when something changed.
   function heal(D, m) {
     if (!m.party || mon.empty(m)) return false;
@@ -563,6 +567,63 @@
     if (D.species[opts.species].nat) dex.register(sv, D.species[opts.species].nat);
   }
   const release = ref => { if (!ref.party) ref.buf.fill(0, ref.off, ref.off + BOX_MON); };
+
+  // ── Party: withdraw, deposit, add ──
+  // A box Pokémon in the 100-byte party form, like the game's withdraw (CFRU CreateBoxMonFromCompressedMon, then BoxMonToMon):
+  // PP refilled with PP Ups, no status, no mail, level from EXP, battle stats calculated and full HP.
+  function boxToParty(D, X, src, dst) {
+    const sp = mon.species(src), name = (D.species[sp] && D.species[sp].n) || `#${sp}`;
+    if (!X || !X.species[sp]) throw new Error(`RadicalHex has no Radical Red stat data for ${name}, so it can't put it in the party. It can stay in a box.`);
+    if (!growth(D, sp)) throw new Error(`RadicalHex has no level data for ${name}, so it can't put it in the party. It can stay in a box.`);
+    const b = dst.buf, o = dst.off, s = src.buf, so = src.off;
+    b.fill(0, o, o + PARTY_MON);
+    b.set(s.subarray(so, so + 0x1C), o); // PID, OT ID, nickname, language, flags, OT name, markings
+    mon.setSpecies(dst, sp); mon.setItem(dst, mon.item(src)); mon.setExp(dst, mon.exp(src));
+    b[o + 0x28] = s[so + 0x24]; // PP Ups
+    mon.setFriendship(dst, mon.friendship(src)); mon.setBall(dst, mon.ball(src));
+    const mv = mon.moves(src), ups = s[so + 0x24];
+    for (let i = 0; i < 4; i++) { w16(b, o + 0x2C + 2 * i, mv[i]); b[o + 0x34 + i] = mv[i] ? Math.min(255, maxPp(D, mv[i], (ups >> (2 * i)) & 3)) : 0; }
+    mon.setEvs(dst, mon.evs(src));
+    b[o + 0x44] = s[so + 0x32]; b[o + 0x45] = s[so + 0x33]; w16(b, o + 0x46, u16(s, so + 0x34)); w32(b, o + 0x48, mon.ivWord(src));
+    b[o + 0x54] = levelOf(D, src);
+    b[o + 0x55] = 0xFF; // no mail
+    if (!recalcStats(D, X, dst)) throw new Error(`Could not work out ${name}'s battle stats.`);
+    w16(b, o + 0x56, u16(b, o + 0x58)); // full HP
+  }
+  const setPartyCount = (sv, n) => w32(sv.data, sv.sec[1] + 0x34, n);
+  // Moves a box Pokémon to the end of the party. Returns its party slot.
+  function withdraw(sv, D, X, ref) {
+    if (ref.party || mon.empty(ref)) throw new Error('Pick a Pokémon in a box.');
+    const n = partyCount(sv);
+    if (n >= 6) throw new Error('Your party is full (6 Pokémon). Move one to a box first.');
+    boxToParty(D, X, ref, partyRef(sv, n));
+    setPartyCount(sv, n + 1);
+    release(ref);
+    return n;
+  }
+  // Moves a party Pokémon into an empty box slot; the Pokémon after it move up, like the game.
+  function deposit(sv, D, i, dst) {
+    const n = partyCount(sv);
+    if (i >= n) throw new Error('Pick a Pokémon in your party.');
+    let others = 0;
+    for (let k = 0; k < n; k++) if (k !== i && !mon.isEgg(partyRef(sv, k))) others++;
+    if (!others) throw new Error("That's your last Pokémon (eggs don't count). The game needs at least one in the party.");
+    copyToBox(D, partyRef(sv, i), dst);
+    const base = sv.sec[1] + 0x38;
+    sv.data.copyWithin(base + i * PARTY_MON, base + (i + 1) * PARTY_MON, base + n * PARTY_MON);
+    sv.data.fill(0, base + (n - 1) * PARTY_MON, base + n * PARTY_MON);
+    setPartyCount(sv, n - 1);
+  }
+  // Creates a new Pokémon straight in the party (same options as createInBox). Returns its party slot.
+  function createInParty(sv, D, X, opts) {
+    const n = partyCount(sv);
+    if (n >= 6) throw new Error('Your party is full (6 Pokémon). Move one to a box first.');
+    const tmp = { buf: new Uint8Array(BOX_MON), off: 0, party: false };
+    createInBox(sv, D, tmp, opts);
+    boxToParty(D, X, tmp, partyRef(sv, n));
+    setPartyCount(sv, n + 1);
+    return n;
+  }
   function swap(a, b) {
     if (a.party || b.party) throw new Error('Only box slots can be moved.');
     const t = a.buf.slice(a.off, a.off + BOX_MON);
@@ -658,7 +719,7 @@
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, createInBox, release, swap, copyToBox, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    dex, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp), // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,
