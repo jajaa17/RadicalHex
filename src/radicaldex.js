@@ -42,9 +42,9 @@ window.RHDexView = function (ui) {
     const page = d => box.scrollBy({ top: d * (box.clientHeight - 40) });
     return [h('div', { class: 'dex-count note' }, `${rows.length} Pokémon`), box,
       h('div', { class: 'pop-pager' },
-        h('button', { type: 'button', class: 'btn small', onclick: () => page(-1) }, '▲ Page up'),
+        h('button', { type: 'button', class: 'btn small', title: 'Page up', onclick: () => page(-1) }, '▲ Up'),
         h('button', { type: 'button', class: 'btn small', onclick: () => { box.scrollTop = 0; } }, 'Top'),
-        h('button', { type: 'button', class: 'btn small', onclick: () => page(1) }, '▼ Page down'))];
+        h('button', { type: 'button', class: 'btn small', title: 'Page down', onclick: () => page(1) }, '▼ Down'))];
   }
 
   const monChip = (id, extra) => h('button', { type: 'button', class: 'mon-chip' + (id === current ? ' cur' : ''), onclick: () => show(id) },
@@ -84,7 +84,7 @@ window.RHDexView = function (ui) {
     const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, ability(a))) : null));
     return h('div', { class: 'dex-detail' },
       h('div', { class: 'dex-hero' },
-        sprite(id, shiny, 144),
+        sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144),
         h('div', { style: 'min-width:0;display:grid;gap:6px' },
           h('div', { class: 'note' }, `No. ${pad(s.nat)}`),
           h('h2', {}, name(id)),
@@ -129,7 +129,7 @@ window.RHDexView = function (ui) {
     const ownBox = ui.save() ? h('label', { class: 'check' }, h('input', { id: 'dex-owned', type: 'checkbox', checked: ownedOnly, onchange: e => { ownedOnly = e.target.checked; listTop = 0; render(); } }), 'Only Pokémon in my save') : null;
     const [count, box, pager] = list(own);
     pane.replaceChildren(h('div', { class: 'dex' },
-      h('aside', { class: 'dex-side' }, search, types, ownBox, count, box, pager),
+      h('aside', { class: 'dex-side' }, h('div', { class: 'dex-filters' }, search, types, ownBox), count, box, pager),
       detail(current, own)));
     box.scrollTop = listTop;
     const cur = box.querySelector('.cur');

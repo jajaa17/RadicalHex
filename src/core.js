@@ -9,9 +9,16 @@
   const WIN = [0xF24, 0xFF0, 0xFF0, 0xFF0, 0xD98, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0x450];
   const STREAM_SIZE = 8 * 0xFF0 + 0x450; // PokemonStorage: sections 5..13 concatenated
   const BOX_MON = 58, PARTY_MON = 100, SLOTS = 30, STRIDE = SLOTS * BOX_MON;
-  const STREAM_BOXES = 19, BOXES = 22; // boxes 20-22 live in the raw sector 30/31 region
+  const STREAM_BOXES = 19, BOXES = 25; // boxes 20-22 live in the raw sector 30/31 region, 23-25 in the save blocks
   const RAW_BASE = 0x1E000, RAW_BOX_OFF = 0xB0C, RAW_BOX_SIZE = 3 * STRIDE, RAW_FIRST = 0xFF0 - RAW_BOX_OFF;
   const rawFile = r => (r < 0xFF0 ? RAW_BASE + r : RAW_BASE + 0x1000 + (r - 0xFF0));
+  // Boxes 23-24 sit in SaveBlock1 at 0x1F08 (sections 2-3), box 25 in SaveBlock2 at 0xB0 (section 0).
+  // All three are inside checksummed sections. Verified against a real save with Pokémon in them.
+  const EXT_SIZE = 3 * STRIDE, SB1_BOXES = 0x1F08, SB2_BOX = 0xB0;
+  const extFile = (sec, i) => {
+    if (i < 2 * STRIDE) { const o = SB1_BOXES + i; return sec[1 + Math.floor(o / 0xFF0)] + (o % 0xFF0); }
+    return sec[0] + SB2_BOX + (i - 2 * STRIDE);
+  };
   const BAG_IN_SECTOR = 0x518; // bag bytes in section 13's tail; the rest continue in the raw region
   const POCKETS = [
     { key: 'items', name: 'Items', off: 0x000, cap: 450, max: 999 },
@@ -99,7 +106,9 @@
     const raw = new Uint8Array(RAW_BOX_SIZE);
     raw.set(data.subarray(rawFile(RAW_BOX_OFF), rawFile(RAW_BOX_OFF) + RAW_FIRST));
     raw.set(data.subarray(rawFile(0xFF0), rawFile(0xFF0) + RAW_BOX_SIZE - RAW_FIRST), RAW_FIRST);
-    return { data, sec, stream, raw, saveIndex: idx[0], original: new Uint8Array(input) };
+    const ext = new Uint8Array(EXT_SIZE);
+    for (let i = 0; i < EXT_SIZE; i++) ext[i] = data[extFile(sec, i)];
+    return { data, sec, stream, raw, ext, saveIndex: idx[0], original: new Uint8Array(input) };
   }
 
   // Builds the output file. Only the live save slot is written; the older slot stays as the game's own fallback.
@@ -109,7 +118,8 @@
     for (let id = 5; id <= 13; id++) { out.set(sv.stream.subarray(c, c + WIN[id]), sv.sec[id]); c += WIN[id]; }
     out.set(sv.raw.subarray(0, RAW_FIRST), rawFile(RAW_BOX_OFF));
     out.set(sv.raw.subarray(RAW_FIRST), rawFile(0xFF0));
-    for (const id of [1, 5, 6, 7, 8, 9, 10, 11, 12, 13]) w16(out, sv.sec[id] + 0xFF6, checksum(out, sv.sec[id], WIN[id]));
+    for (let i = 0; i < EXT_SIZE; i++) out[extFile(sv.sec, i)] = sv.ext[i];
+    for (const id of [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]) w16(out, sv.sec[id] + 0xFF6, checksum(out, sv.sec[id], WIN[id]));
     return out;
   }
 
@@ -117,7 +127,8 @@
   function allowedRanges(sv) {
     const s = sv.sec, r = [];
     r.push([s[1] + 0x38, s[1] + 0x38 + 6 * PARTY_MON], [s[1] + 0x290, s[1] + 0x296], [s[1] + DEX_SEEN, s[1] + DEX_CAUGHT + DEX_BYTES]);
-    for (const id of [1, 5, 6, 7, 8, 9, 10, 11, 12, 13]) r.push([s[id] + 0xFF6, s[id] + 0xFF8]);
+    for (const id of [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]) r.push([s[id] + 0xFF6, s[id] + 0xFF8]);
+    for (let i = 0; i < EXT_SIZE; i++) { const f = extFile(s, i); if (r.length && r[r.length - 1][1] === f) r[r.length - 1][1]++; else r.push([f, f + 1]); }
     for (let id = 5; id <= 13; id++) r.push([s[id], s[id] + WIN[id]]);
     r.push([s[13] + 0xAD8, s[13] + 0xAD8 + BAG_IN_SECTOR], [rawFile(0), rawFile(BAG_END - BAG_IN_SECTOR)]);
     r.push([rawFile(RAW_BOX_OFF), rawFile(RAW_BOX_OFF) + RAW_FIRST], [rawFile(0xFF0), rawFile(0xFF0) + RAW_BOX_SIZE - RAW_FIRST]);
@@ -183,7 +194,8 @@
   const partyRef = (sv, i) => ({ buf: sv.data, off: sv.sec[1] + 0x38 + PARTY_MON * i, party: true });
   const boxRef = (sv, box, slot) => (box < STREAM_BOXES
     ? { buf: sv.stream, off: 4 + (box * SLOTS + slot) * BOX_MON, party: false }
-    : { buf: sv.raw, off: (box - STREAM_BOXES) * STRIDE + slot * BOX_MON, party: false });
+    : box < 22 ? { buf: sv.raw, off: (box - STREAM_BOXES) * STRIDE + slot * BOX_MON, party: false }
+      : { buf: sv.ext, off: (box - 22) * STRIDE + slot * BOX_MON, party: false });
   function boxName(sv, box) {
     const o = box < 14 ? 0x8344 + 9 * box : 0x8344 - 9 * (box - 13);
     const n = decodeText(sv.stream.subarray(o, o + 9));
@@ -257,6 +269,32 @@
     metLevel: m => u16(m.buf, F(m, 0x46, 0x34)) & 0x7F,
     partyStats: m => (m.party ? [0x58, 0x5A, 0x5C, 0x60, 0x62, 0x5E].map(o => u16(m.buf, m.off + o)) : null),
   };
+
+  // ── Healing (party only: the game keeps no HP, status or PP for boxed Pokémon) ──
+  const STATUS = ['', 'Asleep', 'Poisoned', 'Burned', 'Frozen', 'Paralyzed', 'Badly poisoned'];
+  function partyStatus(m) {
+    if (!m.party) return '';
+    const s = u32(m.buf, m.off + 0x50), hp = u16(m.buf, m.off + 0x56);
+    if (hp === 0) return 'Fainted';
+    if (s & 7) return 'Asleep';
+    if (s & 0x80) return 'Badly poisoned';
+    if (s & 0x08) return 'Poisoned';
+    if (s & 0x10) return 'Burned';
+    if (s & 0x20) return 'Frozen';
+    if (s & 0x40) return 'Paralyzed';
+    return '';
+  }
+  const maxPp = (D, move, ups) => { const base = D.pp[move] || 0; return base + Math.floor(base / 5) * ups; };
+  // Returns true when something changed.
+  function heal(D, m) {
+    if (!m.party || mon.empty(m)) return false;
+    const before = m.buf.slice(m.off, m.off + PARTY_MON);
+    w32(m.buf, m.off + 0x50, 0); // status
+    w16(m.buf, m.off + 0x56, u16(m.buf, m.off + 0x58)); // HP = max HP
+    const mv = mon.moves(m), ups = m.buf[m.off + 0x28];
+    for (let i = 0; i < 4; i++) m.buf[m.off + 0x34 + i] = mv[i] ? Math.min(255, maxPp(D, mv[i], (ups >> (2 * i)) & 3)) : 0;
+    return m.buf.subarray(m.off, m.off + PARTY_MON).some((v, k) => v !== before[k]);
+  }
 
   // ── Species helpers ──
   const growth = (D, sp) => (D.species[sp] && D.species[sp].g ? D.exp[D.species[sp].g - 1] : null);
@@ -515,7 +553,7 @@
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, createInBox, release, swap, copyToBox, toShowdown, fromShowdown,
+    dex, createInBox, release, swap, copyToBox, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     validSpecies, validItem, validMove, encodeText, decodeText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

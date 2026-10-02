@@ -104,6 +104,35 @@ for (const file of process.argv.slice(2)) {
     assert.strictEqual(D.moves[767], 'Aqua Step');
   });
 
+  t('boxes 23-25 read, and writes across the section boundary round-trip', () => {
+    const sv = fresh();
+    let n = 0; for (let b = 22; b < 25; b++) for (let s = 0; s < 30; s++) if (!M.empty(C.boxRef(sv, b, s))) n++;
+    console.log('       (Pokémon found in boxes 23-25: ' + n + ')');
+    const sp = D.species.findIndex(x => x.n === 'Garchomp'), mv = [D.moves.indexOf('Earthquake'), 0, 0, 0];
+    for (const [b, s] of [[22, 3], [22, 29], [23, 0], [24, 29]]) { // 22/3 straddles SaveBlock1 sections 2 and 3
+      const r = C.boxRef(sv, b, s); C.release(r);
+      C.createInBox(sv, D, r, { species: sp, level: 40 + s, nature: 7, shiny: false, moves: mv });
+    }
+    const back = C.load(C.build(sv, D));
+    for (const [b, s] of [[22, 3], [22, 29], [23, 0], [24, 29]]) {
+      const r = C.boxRef(back, b, s);
+      assert.strictEqual(M.species(r), sp); assert.strictEqual(C.levelOf(D, r), 40 + s); assert.strictEqual(M.nature(r), 7);
+    }
+  });
+
+  t('heal restores HP, clears status and refills PP for a party Pokémon', () => {
+    const sv = fresh(), r = C.partyRef(sv, 0);
+    r.buf[r.off + 0x56] = 0; r.buf[r.off + 0x57] = 0; r.buf[r.off + 0x50] = 0x08; for (let i = 0; i < 4; i++) r.buf[r.off + 0x34 + i] = 0;
+    assert.strictEqual(C.partyStatus(r), 'Fainted');
+    assert.ok(C.heal(D, r));
+    const back = C.load(C.build(sv, D)), p = C.partyRef(back, 0);
+    const u16 = (b, o) => b[o] | (b[o + 1] << 8);
+    assert.strictEqual(u16(p.buf, p.off + 0x56), u16(p.buf, p.off + 0x58));
+    assert.strictEqual(C.partyStatus(p), '');
+    M.moves(p).forEach((m, i) => assert.strictEqual(M.movePp(p)[i], m ? D.pp[m] + Math.floor(D.pp[m] / 5) * ((p.buf[p.off + 0x28] >> (2 * i)) & 3) : 0));
+    assert.strictEqual(C.heal(D, C.partyRef(back, 0)), false, 'healing a healthy Pokémon changes nothing');
+  });
+
   t('money, coins and every bag pocket', () => {
     const sv = fresh();
     C.setMoney(sv, 999999); C.setCoins(sv, 9999);
@@ -127,7 +156,7 @@ for (const file of process.argv.slice(2)) {
     if (!M.empty(r)) { M.setSpecies(r, 260); assert.throws(() => C.build(sv, D), /unknown species/); }
     sv = fresh(); const r2 = C.boxRef(sv, 0, 0);
     if (!M.empty(r2)) { M.setMoves(r2, [0, 0, 0, 0], D); assert.throws(() => C.build(sv, D), /no moves/); }
-    sv = fresh(); sv.data[sv.sec[0] + 0x500] ^= 1; assert.throws(() => C.build(sv, D), /Unexpected change/);
+    sv = fresh(); sv.data[sv.sec[0] + 0x900] ^= 1; // section 0, after box 25 (0xB0-0x77C) assert.throws(() => C.build(sv, D), /Unexpected change/);
     sv = fresh(); C.setLevel(D, C.boxRef(sv, 0, 0), 100); M.setExp(C.boxRef(sv, 0, 0), 99999999); if (!M.empty(C.boxRef(sv, 0, 0))) assert.throws(() => C.build(sv, D), /EXP/);
   });
 
