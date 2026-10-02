@@ -24,25 +24,30 @@
   let sv = null, fileName = '', dirty = 0, undo = [];
   let tab = 'boxes', box = 0, sel = { party: false, box: 0, slot: 0 }, edTab = 'main', pocket = 'items';
   let draft = null; // the "Add a Pokémon" form
+  // RadicalHaX mode: no legality checks, and illegal options (battle-only forms) unlocked. Save safety checks always stay on.
+  let hax = false;
+  try { hax = localStorage.getItem('radicalhex-hax') === '1'; } catch { /* default off */ }
+  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, window.RH_DEX, r));
+  const illegal = r => legal(r).some(p => p.level === 'error');
 
   // ── Names ──
   const spName = id => (D.species[id] && D.species[id].n) || (id ? `#${id}` : '—');
   const squash = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
-  const addable = id => C.validSpecies(D, id) && !!D.species[id].g && !D.species[id].b;
+  const addable = id => C.validSpecies(D, id) && !!D.species[id].g && (!D.species[id].b || hax);
 
-  // ── Sprites (sheet cells are 96 px; sizes that are multiples of 24 stay crisp) ──
+  // ── Sprites: one small PNG each, loaded only when on screen (sizes that are multiples of 24 stay crisp) ──
   function sprite(sp, shiny, size, egg) {
-    const s = D.species[sp], el = h('span', { class: 'spr' + (shiny ? ' shiny' : ''), 'aria-hidden': 'true' });
-    el.style.width = el.style.height = size + 'px';
-    if (egg || !s || s.s === undefined) { el.classList.add('none'); return el; }
-    const k = size / 96, cols = D.spriteCols;
-    el.style.backgroundSize = `${cols * size}px ${D.spriteRows * size}px`;
-    el.style.backgroundPosition = `-${(s.s % cols) * 96 * k}px -${Math.floor(s.s / cols) * 96 * k}px`;
-    return el;
+    const s = D.species[sp];
+    if (egg || !s || s.s === undefined) {
+      const el = h('span', { class: 'spr none', 'aria-hidden': 'true' });
+      el.style.width = el.style.height = size + 'px';
+      return el;
+    }
+    return h('img', { class: 'spr', src: `assets/sprites/${shiny ? 'shiny/' : ''}${s.s}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
   }
 
   // ── Pickers: a button that opens a scrollable list. Typing to filter is optional. ──
-  const OPTS = {};
+  let OPTS = {};
   const speciesOpts = () => OPTS.species || (OPTS.species = D.species.map((s, i) => (addable(i) ? { id: i, label: s.n } : null)).filter(Boolean));
   const itemOpts = () => OPTS.items || (OPTS.items = D.items.map((n, i) => (i && C.validItem(D, i) ? { id: i, label: n } : null)).filter(Boolean));
   const moveOpts = () => OPTS.moves || (OPTS.moves = D.moves.map((n, i) => (i && n ? { id: i, label: n } : null)).filter(Boolean));
@@ -50,8 +55,8 @@
   const nameIn = (list, id) => (list === 'species' ? spName(id) : (list === 'items' ? D.items[id] : D.moves[id]) || '#' + id);
 
   // value: current id (0 = none). none: label for the empty choice, or null when an empty choice is not allowed.
-  function picker({ id, value, options, none = null, placeholder = 'Choose…', sprites = false, kind, onPick }) {
-    const btn = h('button', { id, type: 'button', class: 'pick', 'aria-haspopup': 'listbox' },
+  function picker({ id, value, options, none = null, placeholder = 'Choose…', sprites = false, kind, onPick, bad = false }) {
+    const btn = h('button', { id, type: 'button', class: 'pick' + (bad ? ' bad' : ''), 'aria-haspopup': 'listbox' },
       sprites && value ? sprite(value, false, 24) : null,
       h('span', { class: 'pick-label' + (value ? '' : ' muted') }, value ? nameIn(kind, value) : none || placeholder),
       value ? h('span', { class: 'pick-id' }, '#' + value) : null,
@@ -139,8 +144,8 @@
   const showError = (title, err) => modal(title, err.message || String(err), [{ text: 'OK', primary: true }]);
 
   // ── Changes and undo ──
-  const snapshot = () => ({ data: sv.data.slice(), stream: sv.stream.slice(), raw: sv.raw.slice() });
-  const restore = s => { sv.data.set(s.data); sv.stream.set(s.stream); sv.raw.set(s.raw); };
+  const snapshot = () => ({ data: sv.data.slice(), stream: sv.stream.slice(), raw: sv.raw.slice(), ext: sv.ext.slice() });
+  const restore = s => { sv.data.set(s.data); sv.stream.set(s.stream); sv.raw.set(s.raw); sv.ext.set(s.ext); };
   // Runs one edit. If it throws, the save is put back exactly as it was.
   function change(what, fn, opts = {}) {
     const before = snapshot();
@@ -148,7 +153,7 @@
       const r = fn();
       if (r === false) { restore(before); return false; }
       undo.push({ what, before });
-      if (undo.length > 80) undo.shift();
+      if (undo.length > 50) undo.shift();
       dirty++;
       afterChange(opts);
       status(what + '.', 'ok');
@@ -229,7 +234,8 @@
         party ? h('span', { class: 'pinfo' }, h('span', { class: 'pname' }, M.nickname(ref) || spName(sp)), h('span', { class: 'plv' }, lv ? 'Lv ' + lv : '')) : null,
         h('span', { class: 'marks' }, M.shiny(ref) ? h('span', { class: 'star', title: 'Shiny' }, '★') : null,
           iv.every(v => v === 31) ? h('span', { class: 'perfect', title: 'Perfect IVs' }, '⬢') : null,
-          M.item(ref) ? h('span', { class: 'held', title: 'Holding ' + (D.items[M.item(ref)] || 'an item') }) : null),
+          M.item(ref) ? h('span', { class: 'held', title: 'Holding ' + (D.items[M.item(ref)] || 'an item') }) : null,
+          illegal(ref) ? h('span', { class: 'illegal-mark', title: 'Illegal: open it to see why' }, '✕') : null),
         lv && !party ? h('span', { class: 'lv' }, 'Lv' + lv) : null].filter(Boolean));
       if (!party) {
         el.draggable = true;
@@ -255,6 +261,7 @@
     return el;
   }
   function renderBoxes() {
+    trim();
     const pane = $('#pane-boxes');
     const pick = h('select', { id: 'boxSelect', 'aria-label': 'Box', onchange: e => { box = +e.target.value; renderBoxes(); } },
       Array.from({ length: C.BOXES }, (_, b) => h('option', { value: b, selected: b === box }, `${C.boxName(sv, b)}  (${boxCount(b)}/30)`)));
@@ -266,6 +273,7 @@
         pick,
         h('button', { class: 'btn', type: 'button', title: 'Next box', onclick: () => { box = (box + 1) % C.BOXES; renderBoxes(); } }, '›'),
         h('span', { class: 'spacer' }),
+        illegalButton(),
         h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 22 boxes' }, 'Max IVs on everything')),
       grid,
       box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
@@ -305,6 +313,19 @@
         h('button', { class: 'btn', type: 'button', disabled: !n, title: 'Restore HP, cure status conditions and refill PP for every party Pokémon', onclick: healParty }, 'Heal party')),
       h('div', { class: 'party-cards' }, cards),
       h('p', { class: 'note' }, 'Click a Pokémon to edit it. Party members are added and removed in the game; Pokémon you add with RadicalHex go into a box.'));
+  }
+  // Lists every illegal Pokémon in the save; clicking jumps to the next one.
+  function illegalButton() {
+    if (hax) return null;
+    const found = [];
+    for (let i = 0; i < C.partyCount(sv); i++) if (illegal(C.partyRef(sv, i))) found.push([true, 0, i]);
+    for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) if (illegal(C.boxRef(sv, b, s))) found.push([false, b, s]);
+    if (!found.length) return h('span', { class: 'legal-count ok' }, '✓ All legal');
+    return h('button', { class: 'btn legal-count bad', type: 'button', title: 'Go to the next illegal Pokémon', onclick: () => {
+      const cur = found.findIndex(([p, b, s]) => p === sel.party && s === sel.slot && (p || b === sel.box));
+      const [p, b, s] = found[(cur + 1) % found.length];
+      if (p) { setTab('party'); select(true, 0, s); } else select(false, b, s);
+    } }, `✕ ${found.length} illegal`);
   }
   function maxAllIvs() {
     let n = 0;
@@ -354,11 +375,28 @@
     const tabs = [['main', 'Main'], ['moves', 'Moves'], ['stats', 'Stats'], ['origin', 'Origin'], ['showdown', 'Showdown']];
     ed.replaceChildren(
       h('div', { class: 'hero', id: 'hero' }),
+      legalityPanel(r),
       h('div', { class: 'subtabs', role: 'tablist' }, tabs.map(([k, t]) =>
         h('button', { class: 'subtab', role: 'tab', type: 'button', 'aria-selected': String(edTab === k), onclick: () => { edTab = k; renderEditor(); } }, t))),
       ...({ main: mainTab, moves: movesTab, stats: statsTab, origin: originTab, showdown: showdownTab }[edTab])(r).filter(Boolean),
       actionsRow(r));
     renderHero();
+  }
+
+  // Every editor change goes through here: party Pokémon get their battle stats recalculated afterwards.
+  const X = window.RH_DEX;
+  function edit(r, what, fn, opts) {
+    return change(what, () => { const out = fn(); if (out !== false && r.party) C.recalcStats(D, X, r); return out; }, opts);
+  }
+
+  function legalityPanel(r) {
+    if (hax) return null;
+    const list = legal(r), errors = list.filter(p => p.level === 'error'), warns = list.filter(p => p.level === 'warn'), info = list.filter(p => p.level === 'info');
+    if (!list.length) return h('div', { class: 'legal ok', role: 'status' }, h('strong', {}, '✓ Legal'), h('span', { class: 'note' }, 'Matches Radical Red\'s rules.'));
+    const cls = errors.length ? 'bad' : warns.length ? 'warn' : 'info';
+    const title = errors.length ? `✕ Illegal: ${errors.length} problem${errors.length > 1 ? 's' : ''}` : warns.length ? `! ${warns.length} thing${warns.length > 1 ? 's' : ''} to check` : 'Not checked';
+    return h('div', { class: 'legal ' + cls, role: 'status' }, h('strong', {}, title),
+      h('ul', {}, [...errors, ...warns, ...info].map(p => h('li', { class: p.level }, p.text))));
   }
 
   function mainTab(r) {
@@ -367,7 +405,7 @@
     return [h('div', { class: 'form' },
       field('Species', picker({ id: 'ed-species', value: sp, options: speciesOpts(), sprites: true, kind: 'species', onPick: id => {
         const L = C.levelOf(D, r), wasDefault = M.nickname(r) === C.defaultNickname(D, sp);
-        change(`Changed species to ${spName(id)}`, () => {
+        edit(r, `Changed species to ${spName(id)}`, () => {
           M.setSpecies(r, id);
           if (L && C.growth(D, id)) C.setLevel(D, r, L); // keep the level on the new growth curve
           if (wasDefault) M.setNickname(r, C.defaultNickname(D, id));
@@ -376,34 +414,34 @@
       field('Nickname', h('input', { id: 'ed-nick', type: 'text', maxlength: 10, value: M.nickname(r), onchange: e => {
         const v = e.target.value.trim() || C.defaultNickname(D, sp);
         if (!C.encodeText(v, 10)) { e.target.classList.add('bad'); status('That nickname uses a character the game cannot show.', 'err'); return; }
-        change('Renamed to ' + v, () => M.setNickname(r, v), { full: true });
+        edit(r, 'Renamed to ' + v, () => M.setNickname(r, v), { full: true });
       } })),
       field(lv ? 'Level' : 'Level (no data for this species)', h('input', { id: 'ed-level', type: 'number', min: 1, max: 100, value: lv || '', disabled: !lv, onchange: e => {
         const L = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1));
-        change('Set level ' + L, () => C.setLevel(D, r, L), { full: true });
+        edit(r, 'Set level ' + L, () => C.setLevel(D, r, L), { full: true });
       } })),
-      field('Nature', h('select', { id: 'ed-nature', onchange: e => change('Set nature ' + C.NATURES[+e.target.value], () => C.setNatureShiny(r, +e.target.value, M.shiny(r)), { full: true }) }, natureOptions(M.nature(r)))),
-      field('Gender', h('select', { id: 'ed-gender', disabled: fixedGender, onchange: e => change('Set gender', () => C.setGender(D, r, +e.target.value), { full: true }) },
+      field('Nature', h('select', { id: 'ed-nature', onchange: e => edit(r, 'Set nature ' + C.NATURES[+e.target.value], () => C.setNatureShiny(r, +e.target.value, M.shiny(r)), { full: true }) }, natureOptions(M.nature(r)))),
+      field('Gender', h('select', { id: 'ed-gender', disabled: fixedGender, onchange: e => edit(r, 'Set gender', () => C.setGender(D, r, +e.target.value), { full: true }) },
         fixedGender ? h('option', {}, genderText(g)) : [0, 1].map(v => h('option', { value: v, selected: v === g }, genderText(v))))),
       field('Held item', picker({ id: 'ed-item', value: M.item(r), options: itemOpts(), none: 'None', kind: 'items',
-        onPick: id => change(id ? 'Gave ' + D.items[id] : 'Removed held item', () => M.setItem(r, id), { full: true }) })),
-      field('Poké Ball', h('select', { id: 'ed-ball', onchange: e => change('Set ball', () => M.setBall(r, +e.target.value), { full: true }) }, ballOptions(M.ball(r)))),
+        onPick: id => edit(r, id ? 'Gave ' + D.items[id] : 'Removed held item', () => M.setItem(r, id), { full: true }) })),
+      field('Poké Ball', h('select', { id: 'ed-ball', onchange: e => edit(r, 'Set ball', () => M.setBall(r, +e.target.value), { full: true }) }, ballOptions(M.ball(r)))),
       field('Friendship', h('input', { id: 'ed-fr', type: 'number', min: 0, max: 255, value: M.friendship(r), onchange: e => {
         const v = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0));
-        change('Set friendship ' + v, () => M.setFriendship(r, v), { full: true });
+        edit(r, 'Set friendship ' + v, () => M.setFriendship(r, v), { full: true });
       } })),
-      h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => change(e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked), { full: true }) }), '★ Shiny'),
-      h('label', { class: 'check' }, h('input', { id: 'ed-ha', type: 'checkbox', checked: M.hiddenAbility(r), onchange: e => change(e.target.checked ? 'Turned on hidden ability' : 'Turned off hidden ability', () => M.setHiddenAbility(r, e.target.checked), { full: true }) }), `Hidden ability (otherwise ability ${M.abilitySlot(r)})`)),
-      sel.party ? h('p', { class: 'note' }, 'Party Pokémon store their battle stats separately. After changing level, nature, IVs or EVs here, deposit the Pokémon in a box and withdraw it in the game so its stats update.') : null];
+      h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => edit(r, e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked), { full: true }) }), '★ Shiny'),
+      h('label', { class: 'check' }, h('input', { id: 'ed-ha', type: 'checkbox', checked: M.hiddenAbility(r), onchange: e => edit(r, e.target.checked ? 'Turned on hidden ability' : 'Turned off hidden ability', () => M.setHiddenAbility(r, e.target.checked), { full: true }) }), `Hidden ability (otherwise ability ${M.abilitySlot(r)})`)),
+      sel.party ? h('p', { class: 'note' }, 'Battle stats are recalculated from Radical Red\'s base stats whenever you edit a party Pokémon.') : null];
   }
 
   function movesTab(r) {
     const mv = M.moves(r), pp = M.movePp(r);
     return [h('div', { class: 'form' }, mv.map((m, i) =>
-      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveOpts(), none: 'None', kind: 'moves', onPick: id => {
+      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveOpts(), none: 'None', kind: 'moves', bad: legal(r).some(p => p.field === 'move' + i), onPick: id => {
         const next = mv.slice(); next[i] = id;
         if (!next.some(x => x)) { status('A Pokémon needs at least one move.', 'err'); return; }
-        change(id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
+        edit(r, id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
       } }), ' wide'))),
     h('p', { class: 'note' }, 'Radical Red allows any move here. Changing a move refills its PP and removes PP Ups for that slot.')];
   }
@@ -424,15 +462,19 @@
     const ivs = M.ivs(r), evs = M.evs(r), total = evs.reduce((a, b) => a + b, 0);
     return [
       statsGrid(ivs, evs, M.nature(r),
-        (i, v) => { const x = M.ivs(r); x[i] = v; change(`Set ${C.STATS[i]} IV to ${v}`, () => M.setIvs(r, x), { full: true }); },
-        (i, v) => { const x = M.evs(r); x[i] = v; change(`Set ${C.STATS[i]} EV to ${v}`, () => M.setEvs(r, x), { full: true }); },
+        (i, v) => { const x = M.ivs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} IV to ${v}`, () => M.setIvs(r, x), { full: true }); },
+        (i, v) => { const x = M.evs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} EV to ${v}`, () => M.setEvs(r, x), { full: true }); },
         M.partyStats(r), 'ed'),
       h('div', { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', onclick: () => change('Set perfect IVs', () => M.setIvs(r, [31, 31, 31, 31, 31, 31]), { full: true }) }, 'Max IVs'),
-        h('button', { class: 'btn small', type: 'button', onclick: () => change('Cleared EVs', () => M.setEvs(r, [0, 0, 0, 0, 0, 0]), { full: true }) }, 'Clear EVs'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Set perfect IVs', () => M.setIvs(r, [31, 31, 31, 31, 31, 31]), { full: true }) }, 'Max IVs'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Cleared EVs', () => M.setEvs(r, [0, 0, 0, 0, 0, 0]), { full: true }) }, 'Clear EVs'),
         h('span', { class: 'grow' }),
         h('span', { class: total > 510 ? 'warn' : 'note' }, `EV total ${total}/510${total > 510 ? ' — above the normal limit' : ''}`)),
-      M.partyStats(r) ? h('p', { class: 'note' }, 'The Stat column shows the stored party stats. They refresh in the game after a deposit and withdraw, or on level up.') : null];
+      M.partyStats(r) ? h('div', { class: 'row' }, h('span', { class: 'note grow' }, 'The Stat column shows the party stats stored in the save.'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => {
+          const before = M.partyStats(r).join();
+          if (!change('Recalculated stats', () => C.recalcStats(D, X, r) && M.partyStats(r).join() !== before, { full: true })) status('Its stats are already up to date.');
+        } }, 'Recalculate stats')) : null];
   }
 
   function originTab(r) {
@@ -521,7 +563,7 @@
           } }, 'Fill the form from this set'))),
       h('div', { class: 'form' },
         field('Species', picker({ id: 'add-species', value: d.species, options: speciesOpts(), sprites: true, kind: 'species', placeholder: 'Choose a Pokémon',
-          onPick: id => { d.species = id; d.gender = null; rerender(); } }), ' wide'),
+          onPick: id => { d.species = id; d.gender = null; if (!d.moves.some(x => x)) d.moves = startMoves(id, d.level); rerender(); } }), ' wide'),
         field('Nickname', h('input', { id: 'add-nick', type: 'text', maxlength: 10, value: d.nickname, placeholder: d.species ? C.defaultNickname(D, d.species) : 'Species name', onchange: e => {
           if (e.target.value && !C.encodeText(e.target.value, 10)) return pickBad(e, 'That nickname uses a character the game cannot show.');
           d.nickname = e.target.value.trim();
@@ -542,6 +584,15 @@
       h('div', { class: 'row', style: 'border-top:1px solid var(--line);padding-top:12px' },
         h('button', { class: 'btn primary', type: 'button', onclick: create }, 'Add to box'),
         h('button', { class: 'btn', type: 'button', onclick: () => { draft = newDraft(); rerender(); } }, 'Clear form'))];
+  }
+  // The last four level-up moves it knows by its level, like a wild Pokémon. Megas and other form changes use their base form's.
+  function startMoves(id, level) {
+    let x = X.species[id];
+    if (x && !x.lv.length) { const base = Object.keys(X.species).find(k => X.species[k].evo.some(e => e[0] === id && e[2])); if (base) x = X.species[base]; }
+    const seen = [];
+    for (const [m, lv] of x ? x.lv : []) if (m && lv <= level && C.validMove(D, m) && !seen.includes(m)) seen.push(m);
+    const last = seen.slice(-4);
+    return [0, 1, 2, 3].map(i => last[i] || 0);
   }
   function create() {
     const d = draft;
@@ -629,6 +680,7 @@
     }
     let list = [];
     try { list = await host.listBackups(); } catch (e) { status(e.message, 'err'); }
+    if (tab !== 'backups') return; // switched tabs while the list was loading
     pane.replaceChildren(
       h('div', { class: 'row' }, h('h3', {}, 'Backups'), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', onclick: async () => { try { await host.backupNow(sv.original); status('Backed up the file as it is on disk.', 'ok'); renderBackups(); } catch (e) { status(e.message, 'err'); } } }, 'Back up now'),
@@ -708,17 +760,22 @@
   function renderPane() {
     if (tab === 'boxes') renderBoxes(); else if (tab === 'party') renderParty(); else if (tab === 'trainer') renderTrainer();
     else if (tab === 'dex') dexView.render($('#pane-dex')); else if (tab === 'nuzlocke') nuz.render($('#pane-nuzlocke')); else renderBackups();
+    trim();
   }
   function setTab(k) {
     tab = k;
     for (const b of document.querySelectorAll('.tab')) b.setAttribute('aria-selected', String(b.dataset.tab === k));
-    for (const p of PANES) $('#pane-' + p).hidden = p !== k;
+    // Hidden tabs are emptied, so only the open tab's page (and its sprites) is kept in memory.
+    for (const p of PANES) { const el = $('#pane-' + p); el.hidden = p !== k; if (p !== k) el.replaceChildren(); }
     renderPane();
   }
+  // Ask the window to drop images that are no longer shown, a moment after things settle.
+  let trimTimer = 0;
+  function trim() { if (!host || !host.trimMemory) return; clearTimeout(trimTimer); trimTimer = setTimeout(() => host.trimMemory(), 1500); }
   function renderAll() { renderHeader(); setTab(tab); renderEditor(); }
   function openDex(id) { setTab('dex'); dexView.show(id); }
   // Shared with radicaldex.js and nuzlocke.js.
-  const ui = { h, sprite, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex };
+  const ui = { h, sprite, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
   const dexView = window.RHDexView(ui), nuz = window.RHNuzlocke(ui);
   $('#btnDex').onclick = () => {
     dexOnly = true;
@@ -726,6 +783,23 @@
     setTab('dex');
   };
 
+  function renderHax() {
+    const b = $('#btnHax');
+    b.textContent = hax ? 'RadicalHaX mode' : 'Legality checks on';
+    b.classList.toggle('hax', hax);
+    b.title = hax ? 'Illegal Pokémon allowed and not checked. Save safety checks still run. Click to turn legality checks back on.'
+      : 'Pokémon are checked against Radical Red\'s rules. Click for RadicalHaX mode (anything goes).';
+    document.body.classList.toggle('hax-on', hax);
+  }
+  $('#btnHax').onclick = () => {
+    hax = !hax;
+    try { localStorage.setItem('radicalhex-hax', hax ? '1' : '0'); } catch { /* not remembered */ }
+    OPTS = {}; // species list changes with the mode
+    renderHax();
+    if (sv) { renderPane(); renderEditor(); }
+    status(hax ? 'RadicalHaX mode: anything goes. RadicalHex still stops saves that would damage the file.' : 'Legality checks are on.');
+  };
+  renderHax();
   $('#btnOpen').onclick = open;
   $('#btnOpen2').onclick = open;
   $('#btnSave').onclick = () => save(false);

@@ -23,6 +23,25 @@ function evoText(evo) {
 // Stats are stored HP/Atk/Def/Spe/SpA/SpD; the app shows HP/Atk/Def/SpA/SpD/Spe.
 const statOrder = s => [s[0], s[1], s[2], s[4], s[5], s[3]];
 
+// Every move a species can know in Radical Red: level-up, TM, tutor and egg moves, plus those of its pre-evolutions.
+const prevos = {};
+for (const [id, s] of Object.entries(species)) for (const e of s.evolutions || []) if (e[0] !== 254) (prevos[e[2]] = prevos[e[2]] || []).push(+id);
+function ownMoves(id) {
+  const s = species[id], set = new Set();
+  if (!s) return set;
+  for (const [m] of s.levelupMoves || []) set.add(m);
+  for (const i of s.tmMoves || []) set.add(d.tmMoves[i]);
+  for (const i of s.tutorMoves || []) set.add(d.tutorMoves[i]);
+  for (const m of s.eggMoves || []) set.add(m);
+  return set;
+}
+function learnable(id, seen = new Set()) {
+  seen.add(id);
+  const set = ownMoves(id);
+  for (const p of prevos[id] || []) if (!seen.has(p)) for (const m of learnable(p, seen)) set.add(m);
+  return set;
+}
+
 const outSpecies = {};
 for (const [id, s] of Object.entries(species)) {
   outSpecies[id] = {
@@ -33,6 +52,7 @@ for (const [id, s] of Object.entries(species)) {
     anc: s.ancestor,
     evo: (s.evolutions || []).filter(e => species[e[2]]).map(e => [e[2], evoText(e), e[0] === 254 ? 1 : 0]),
     lv: (s.levelupMoves || []).map(m => [m[0], m[1]]),
+    ln: [...learnable(+id)].filter(m => moves[m]).sort((a, b) => a - b),
   };
 }
 

@@ -3,20 +3,24 @@ const fs = require('fs'), path = require('path'), assert = require('assert');
 const root = path.join(__dirname, '..');
 global.window = {}; eval(fs.readFileSync(path.join(root, 'src/data.js'), 'utf8'));
 const D = window.RH_DATA, C = require('../src/core.js');
-const cells = D.spriteCols * D.spriteRows;
 assert.ok(D.species.length > 1300, 'species table');
 assert.ok(D.items.length > 700 && D.moves.length > 1000 && D.moves.length <= 1024 && D.pp.length === D.moves.length, 'item and move tables (move ids must fit 10 bits)');
 assert.strictEqual(D.exp.length, 6); for (const c of D.exp) assert.strictEqual(c.length, 101);
 for (const [i, s] of D.species.entries()) {
   if (!s.n) continue;
-  if (s.s !== undefined) assert.ok(s.s >= 0 && s.s < cells, `sprite cell for ${s.n}`);
+  if (s.s !== undefined) assert.ok(s.s >= 0 && s.s < 2000, `sprite index for ${s.n}`);
   if (s.g) { assert.ok(s.g >= 1 && s.g <= 6, `growth for ${s.n}`); assert.ok(C.encodeText(C.defaultNickname(D, i), 10), `nickname for ${s.n}`); }
 }
-for (const f of ['src/assets/sprites.png', 'src/assets/sprites-shiny.png', 'build/icon.png']) assert.ok(fs.statSync(path.join(root, f)).size > 1000, f);
+assert.ok(fs.statSync(path.join(root, 'build/icon.png')).size > 1000, 'icon');
+const spriteCount = Math.max(...D.species.filter(s => s.s !== undefined).map(s => s.s)) + 1;
+for (let i = 0; i < spriteCount; i++) for (const dir of ['', 'shiny/']) assert.ok(fs.existsSync(path.join(root, `src/assets/sprites/${dir}${i}.png`)), `sprite ${dir}${i}`);
 const html = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8');
 assert.ok(/Content-Security-Policy[^>]+script-src 'self'/.test(html), 'CSP');
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
 assert.ok(main.includes('contextIsolation: true') && main.includes('nodeIntegration: false') && main.includes('sandbox: true'), 'window isolation');
+// Undo and failed edits must restore every part of the save the editor writes, boxes 23-25 (sv.ext) included.
+const appJs = fs.readFileSync(path.join(root, 'src/app.js'), 'utf8');
+for (const part of ['data', 'stream', 'raw', 'ext']) assert.ok(appJs.includes(`${part}: sv.${part}.slice()`) && appJs.includes(`sv.${part}.set(s.${part})`), `undo snapshot covers ${part}`);
 for (const f of ['src/app.js', 'src/core.js']) assert.ok(!/require\(['"](fs|child_process)/.test(fs.readFileSync(path.join(root, f), 'utf8')), `${f} must not touch the disk`);
 // The PID solver must hit every nature/shiny combination quickly.
 for (let n = 0; n < 25; n++) for (const shiny of [true, false]) {

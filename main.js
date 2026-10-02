@@ -21,6 +21,11 @@ let win;
 let current = null; // { path, name }
 const SMOKE = process.argv.includes('--smoke-test'); // CI: load the window, check it, quit
 
+// RadicalHex only draws simple 2D pages, so the GPU process is not needed. Turning it off saves about 40 MB of memory.
+app.disableHardwareAcceleration();
+// RadicalHex never goes online, so the network helper runs inside the main process instead of its own (about 12 MB less).
+app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess2');
+
 function createWindow() {
   // Open at a size that fits the screen (old 1024x768 monitors and scaled laptop screens included).
   const area = screen.getPrimaryDisplay().workAreaSize;
@@ -30,7 +35,7 @@ function createWindow() {
     title: 'RadicalHex',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#141217' : '#f2f1f4',
     icon: path.join(__dirname, 'build', 'icon.png'),
-    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
+    webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false },
   });
   win.removeMenu();
   if (area.width <= 1280 || area.height <= 768) win.maximize(); // small screens: use all of it

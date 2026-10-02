@@ -1,11 +1,13 @@
-"""Builds src/data.js and the sprite sheets.
+"""Builds src/data.js and the per-Pokémon sprite files in src/assets/sprites.
 
 Run tools/build-dex.js first: it writes tools/rr-tables.json (Radical Red's own move and item tables).
 
-Sources (fetch these first, see README):
-  ../pkforge   - sofianeelhor/PKForge (GPLv3): Radical Red 4.1 species ids/names
-  ../pokeapi   - PokeAPI/pokeapi data/v2/csv: national ids, growth rates, gender ratios
-  ../pksprites - PokeAPI/sprites sprites/pokemon (+ shiny)
+Usage: python3 tools/build-data.py <sources folder>, which must contain:
+  <sources>/pkforge   - sofianeelhor/PKForge (GPLv3): Radical Red 4.1 species ids/names
+  <sources>/pokeapi   - PokeAPI/pokeapi data/v2/csv: national ids, growth rates, gender ratios
+  <sources>/pksprites - PokeAPI/sprites sprites/pokemon (+ shiny)
+  <sources>/rr_base_2023.c - Radical Red's Base_Stats.c, for its growth rates:
+      git -C rrdex show f848f86^:data/species/Base_Stats.c > rr_base_2023.c   (rrdex = Ydarissep/Radical-Red-Pokedex)
 """
 import csv, json, re, sys, unicodedata, os
 from PIL import Image
@@ -94,6 +96,44 @@ def resolve(rid, name):
     return None
 
 GENDER = {-1: 255, 0: 0, 1: 31, 2: 63, 4: 127, 6: 191, 7: 225, 8: 254}
+
+# Radical Red's own growth rates (they differ from the official games for many species, e.g. Togedemaru is Fast).
+# Ids follow PokeAPI's growth_rate ids used by the exp tables below.
+GROWTH_ID = {'GROWTH_SLOW': 1, 'GROWTH_MEDIUM_FAST': 2, 'GROWTH_FAST': 3, 'GROWTH_MEDIUM_SLOW': 4, 'GROWTH_ERRATIC': 5, 'GROWTH_FLUCTUATING': 6}
+rr_growth = {}
+for chunk in open(f'{ROOT}/rr_base_2023.c', encoding='utf8').read().split('[SPECIES_')[1:]:
+    key = chunk.split(']', 1)[0]
+    g = re.search(r'\.growthRate\s*=\s*(GROWTH_[A-Z_]+)', chunk.split('[SPECIES_', 1)[0])
+    if g:
+        rr_growth[key] = GROWTH_ID[g.group(1)]
+SUFFIX = {'HISUI': 'H', 'GALAR': 'G', 'ALOLA': 'A', 'PALDEA': 'P'}
+# Evolution family base of each species, from src/dex.js (run tools/build-dex.js first).
+_dex = json.loads(open(os.path.join(OUT, 'dex.js'), encoding='utf8').read().split('= ', 1)[1].rstrip().rstrip(';'))
+family_base = {int(k): v['anc'] for k, v in _dex['species'].items()}
+def rr_growth_for(name, rid=None):
+    # A species missing from the table takes its evolution family's rate (e.g. Hydrapple follows Applin: Erratic).
+    base = family_base.get(rid)
+    if base and base != rid and species.get(base):
+        found = rr_growth_lookup(species[base])
+        if found:
+            return found
+    return rr_growth_lookup(name) or GROWTH_ID['GROWTH_MEDIUM_FAST']
+def rr_growth_lookup(name):
+    k = re.sub(r'[^A-Z0-9]+', '_', unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode().upper().replace("'", '').replace('.', '')).strip('_')
+    parts = k.split('_')
+    tries = [k]
+    if len(parts) > 1 and parts[1] in SUFFIX:
+        tries.append('_'.join([parts[0], SUFFIX[parts[1]]] + parts[2:]))
+    tries.append(parts[0])
+    for c in tries:
+        if c in rr_growth:
+            return rr_growth[c]
+    for c in sorted(rr_growth):  # other forms share the base species' rate (e.g. MINIOR_RED for Minior)
+        if c.startswith(parts[0] + '_'):
+            return rr_growth[c]
+    # Not in the table: a species added in Radical Red 4.1. With no family to follow these use Medium Fast;
+    # every one seen in real saves has EXP equal to level cubed.
+    return None
 BATTLE_ONLY = re.compile(r'-(Mega|Primal|Gmax|Gigantamax|Eternamax|Ultra|Busted|School|Zen|Blade|Pirouette|Crowned|Sunshine|Hangry|Noice|Complete|Stellar)\b')
 out_species, sprites, missing = [], [], []
 sprite_index = {}
@@ -109,7 +149,7 @@ for rid in range(maxid + 1):
         else:
             row, key, exact = res
             sp = spec_by_id[row['species_id']]
-            entry.update(nat=int(row['species_id']), g=int(sp['growth_rate_id']), gr=GENDER[int(sp['gender_rate'])])
+            entry.update(nat=int(row['species_id']), g=rr_growth_for(name, rid), gr=GENDER[int(sp['gender_rate'])])
             if key is not None:
                 if key not in sprite_index:
                     sprite_index[key] = len(sprites)
@@ -131,18 +171,25 @@ def fit(im, room=88):
     k = max(1, min(room // im.width, room // im.height))
     return im.resize((im.width * k, im.height * k), Image.NEAREST) if k > 1 else im
 
-# Sprite sheets: 96x96 cells, 40 per row.
-COLS, CELL = 40, 96
-rows = (len(sprites) + COLS - 1) // COLS
-for folder, fname in (('', 'sprites.png'), ('shiny/', 'sprites-shiny.png')):
-    sheet = Image.new('RGBA', (COLS * CELL, rows * CELL), (0, 0, 0, 0))
+# One small PNG per sprite (normal and shiny), so the app only decodes the sprites on screen.
+CELL = 96
+for folder, sub in (('', ''), ('shiny/', 'shiny')):
+    out_dir = os.path.join(OUT, 'assets', 'sprites', sub)
+    os.makedirs(out_dir, exist_ok=True)
+    for f in os.listdir(out_dir):
+        if f.endswith('.png'):
+            os.remove(os.path.join(out_dir, f))
     for i, key in enumerate(sprites):
         path = SPR + folder + key + '.png'
         if not os.path.exists(path):
             path = SPR + key + '.png'
         im = fit(Image.open(path).convert('RGBA'))
-        sheet.paste(im, ((i % COLS) * CELL + (CELL - im.width) // 2, (i // COLS) * CELL + (CELL - im.height) // 2))
-    sheet.save(os.path.join(OUT, 'assets', fname), optimize=True)
+        cell = Image.new('RGBA', (CELL, CELL), (0, 0, 0, 0))
+        cell.paste(im, ((CELL - im.width) // 2, (CELL - im.height) // 2))
+        cell.save(os.path.join(out_dir, f'{i}.png'), optimize=True)
+for old in ('sprites.png', 'sprites-shiny.png'):
+    if os.path.exists(os.path.join(OUT, 'assets', old)):
+        os.remove(os.path.join(OUT, 'assets', old))
 
 # The game's own short spellings for names longer than 10 letters, as stored in real saves.
 NICK = {'Dudunsparce': 'Dudunsprce', 'Basculegion': 'Basclegion', 'Crabominable': 'Crabminble', 'Blacephalon': 'Blacphalon',
@@ -162,8 +209,6 @@ data = {
     'pp': [int(x or 0) for x in arr(movepp, max(moves))],
     'exp': [exp[g] for g in range(1, 7)],
     'nick': nick,
-    'spriteCols': COLS,
-    'spriteRows': rows,
 }
 with open(os.path.join(OUT, 'data.js'), 'w', encoding='utf8') as f:
     f.write('// Generated by tools/build-data.py. Do not edit by hand.\nwindow.RH_DATA = ')

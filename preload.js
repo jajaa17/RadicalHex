@@ -1,5 +1,5 @@
 // The only bridge between the window and the computer: a handful of file actions.
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webUtils, webFrame } = require('electron');
 
 const call = (name, ...args) => ipcRenderer.invoke(name, ...args).then(r => {
   if (!r.ok) throw new Error(r.error);
@@ -18,4 +18,6 @@ contextBridge.exposeInMainWorld('rh', {
   showBackups: () => call('show-backups'),
   setDirty: d => call('set-dirty', d),
   version: () => call('version'),
+  // Lets go of sprites and other images that are no longer on screen.
+  trimMemory: () => { try { webFrame.clearCache(); } catch { /* best effort */ } },
 });

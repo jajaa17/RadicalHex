@@ -296,6 +296,70 @@
     return m.buf.subarray(m.off, m.off + PARTY_MON).some((v, k) => v !== before[k]);
   }
 
+  // ── Battle stats (Radical Red base stats; this formula reproduces the game's stored party stats exactly) ──
+  function calcStats(D, X, m) {
+    const x = X && X.species[mon.species(m)];
+    if (!x || !m.party) return null;
+    const L = mon.level(m), iv = mon.ivs(m), ev = mon.evs(m), n = mon.nature(m), up = Math.floor(n / 5), down = n % 5;
+    const natureIndex = [null, 0, 1, 3, 4, 2]; // HP Atk Def SpA SpD Spe -> nature order Atk Def Spe SpA SpD
+    return x.st.map((b, i) => {
+      const base = Math.floor((2 * b + iv[i] + Math.floor(ev[i] / 4)) * L / 100);
+      if (i === 0) return b === 1 ? 1 : base + L + 10;
+      let v = base + 5;
+      if (up !== down) { if (natureIndex[i] === up) v = Math.floor(v * 110 / 100); else if (natureIndex[i] === down) v = Math.floor(v * 90 / 100); }
+      return v;
+    });
+  }
+  const STAT_OFFSETS = [0x58, 0x5A, 0x5C, 0x60, 0x62, 0x5E];
+  // Rewrites a party Pokémon's stats; current HP moves with max HP like a level-up, and a fainted Pokémon stays fainted.
+  function recalcStats(D, X, m) {
+    const s = calcStats(D, X, m);
+    if (!s) return false;
+    const oldMax = u16(m.buf, m.off + 0x58), hp = u16(m.buf, m.off + 0x56);
+    STAT_OFFSETS.forEach((o, i) => w16(m.buf, m.off + o, s[i]));
+    w16(m.buf, m.off + 0x56, hp === 0 ? 0 : Math.max(1, Math.min(s[0], hp + s[0] - oldMax)));
+    return true;
+  }
+
+  // ── Legality (Radical Red rules) ──
+  // Returns [{ level: 'error' | 'warn' | 'info', text, field }]. Errors are things the game cannot produce.
+  const learnCache = new Map();
+  const learnSet = (X, sp) => { if (!learnCache.has(sp)) learnCache.set(sp, new Set(X.species[sp] ? X.species[sp].ln : [])); return learnCache.get(sp); };
+  function expLevel(D, m) {
+    const t = growth(D, mon.species(m));
+    if (!t) return null;
+    let L = 1;
+    while (L < 100 && t[L + 1] <= mon.exp(m)) L++;
+    return L;
+  }
+  function legality(D, X, m) {
+    const out = [], add = (level, text, field) => out.push({ level, text, field });
+    const sp = mon.species(m), s = D.species[sp], x = X.species[sp], name = s && s.n ? s.n : `#${sp}`;
+    if (mon.isEgg(m)) return [{ level: 'info', text: 'Eggs are not checked.' }];
+    if (s && s.b) add('error', `${name} is a battle-only form and can't exist outside battle.`, 'species');
+    if (!x) { add('info', `There is no Radical Red data for ${name}, so it can't be checked.`); return out; }
+    const mv = mon.moves(m), set = learnSet(X, sp);
+    if (!mv.some(Boolean)) add('error', 'It has no moves.', 'moves');
+    mv.forEach((id, i) => { if (id && !set.has(id)) add('error', `${name} can't learn ${D.moves[id] || '#' + id} in Radical Red (not a level-up, TM, tutor, egg or pre-evolution move).`, 'move' + i); });
+    const dup = mv.find((id, i) => id && mv.indexOf(id) !== i);
+    if (dup) add('error', `${D.moves[dup] || '#' + dup} is in two move slots.`, 'moves');
+    const total = mon.evs(m).reduce((a, b) => a + b, 0);
+    if (total > 510) add('error', `Its EVs add up to ${total}. A Pokémon can have at most 510.`, 'evs');
+    if (mon.hiddenAbility(m) && !x.ab[2]) add('warn', `${name} has no hidden ability in Radical Red, so the game uses its normal ability.`, 'ability');
+    const L = expLevel(D, m);
+    if (L && mon.metLevel(m) > L) add('warn', `It was met at level ${mon.metLevel(m)} but its EXP only reaches level ${L}.`, 'level');
+    if (X.metNames && !X.metNames[mon.metLocation(m)]) add('warn', `Its met location (#${mon.metLocation(m)}) is not a real place.`, 'origin');
+    const it = mon.item(m);
+    if (it && pocketOf(D, it) === 'key') add('warn', `${D.items[it] || 'That item'} is a key item, which Pokémon can't normally hold.`, 'item');
+    if (m.party) {
+      if (L && mon.level(m) !== L) add('warn', `Its level (${mon.level(m)}) doesn't match its EXP (level ${L}).`, 'level');
+      const c = calcStats(D, X, m);
+      if (c && c.join() !== mon.partyStats(m).join()) add('warn', 'Its battle stats are out of date.', 'stats');
+    }
+    return out;
+  }
+  const isIllegal = (D, X, m) => legality(D, X, m).some(p => p.level === 'error');
+
   // ── Species helpers ──
   const growth = (D, sp) => (D.species[sp] && D.species[sp].g ? D.exp[D.species[sp].g - 1] : null);
   function levelOf(D, m) {
@@ -554,6 +618,7 @@
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, createInBox, release, swap, copyToBox, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    calcStats, recalcStats, legality, isIllegal, expLevel,
     validSpecies, validItem, validMove, encodeText, decodeText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
