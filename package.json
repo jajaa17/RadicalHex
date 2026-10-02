@@ -1,0 +1,49 @@
+{
+  "name": "radicalhex",
+  "productName": "RadicalHex",
+  "version": "1.0.0",
+  "description": "Save editor for Pokémon Radical Red 4.1: boxes with sprites, add and edit Pokémon, bag, money, automatic backups.",
+  "main": "main.js",
+  "author": "jajaa17",
+  "license": "GPL-3.0-or-later",
+  "repository": "github:jajaa17/RadicalHex",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke-test",
+    "test": "node test/core.test.js",
+    "check": "node test/static.test.js",
+    "dist": "electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "io.github.jajaa17.radicalhex",
+    "productName": "RadicalHex",
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "build/icon.png",
+      "LICENSE"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "RadicalHex.exe"
+    }
+  }
+}

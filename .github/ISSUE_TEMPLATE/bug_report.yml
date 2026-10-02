@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in RadicalHex doesn't work, crashes or looks wrong.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for reporting! Fill in what you can. Screenshots help a lot.
+  - type: input
+    id: version
+    attributes:
+      label: RadicalHex version
+      description: Shown on the Releases page you downloaded from.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, and what went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen again
+      placeholder: |
+        1. Open my save
+        2. Go to the Boxes tab
+        3. ...
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect instead?
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: "Windows 11"
+  - type: textarea
+    id: files
+    attributes:
+      label: Screenshots or files
+      description: Drag screenshots here. If it only happens with one save, you can attach the save as a .zip.
