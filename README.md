@@ -123,6 +123,20 @@ Good to know:
 
 If you find any issue, please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose) and pick **Bug report**, **Save problem**, **Wrong game data** or **Feature request**. Your original save is always in the `Backups` folder next to RadicalHex.exe, so attaching it is safe.
 
+## What it's built with
+
+- **[Electron](https://www.electronjs.org/)**, the same base used by apps like Discord and VS Code. Electron is an open-source project of the OpenJS Foundation (it was started by GitHub). It packs two things into one Windows app:
+  - **Chromium**, the open-source browser engine behind Google Chrome, which draws the window
+  - **Node.js**, which handles your files: opening and saving saves, and making backups
+- The app itself is plain **HTML, CSS and JavaScript**, with no frameworks or extra libraries. All the save reading, editing and checking is in `src/core.js`.
+- **[electron-builder](https://www.electron.build/)** turns it into the single `RadicalHex.exe`, and **GitHub Actions** builds it on Windows from this code for every release, so the .exe isn't built on anyone's own PC.
+- The data and asset tools in `tools/` use **Node.js**, **Python** (with Pillow for the item icons) and **ffmpeg** (for the cries).
+- The sounds are made by the app as they play, with the browser's Web Audio feature, so there are no sound files for them.
+
+**Why is the .exe about 100 MB?** Almost all of it is Electron, because every Electron app brings its own copy of Chromium. RadicalHex's own code, data, sprites, item icons and cries are about 20 MB of that. The download is already trimmed (English-only browser files, maximum compression).
+
+**Does it go online?** No. RadicalHex never connects to the internet. Links like the PKHeX credit just open in your normal browser.
+
 ## Building from source
 
 Requires Node.js 22.
