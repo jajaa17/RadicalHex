@@ -546,14 +546,16 @@
       edit(r, `Set EXP to ${v.toLocaleString()}`, () => C.setExp(D, r, v), { full: true });
       if (capped) status(`EXP is ${v.toLocaleString()}, the most a Pokémon can have (level 100).`);
     });
-    return [field('EXP', box),
-      h('div', { class: 'exp-row' },
-        h('div', { class: 'exp-meter', title: next ? `Level ${L}: ${t[L].toLocaleString()}–${(next - 1).toLocaleString()} EXP` : 'Level 100' },
-          h('span', { class: 'exp-text' }, h('span', {}, next ? `${(next - exp).toLocaleString()} to Lv ${L + 1}` : 'Max level'),
-            h('span', { class: 'mono' }, next ? `${(exp - t[L]).toLocaleString()} / ${(next - t[L]).toLocaleString()}` : t[100].toLocaleString())),
-          h('span', { class: 'expbar' }, h('span', { style: `width:${pct}%` }))),
-        next ? h('button', { id: 'ed-edge', class: 'btn small', type: 'button', disabled: exp === next - 1, title: `Set EXP to ${(next - 1).toLocaleString()}, one point before level ${L + 1}`,
-          onclick: () => edit(r, `Set EXP to 1 before level ${L + 1}`, () => C.setExp(D, r, next - 1), { full: true }) }, '1 EXP to go') : null)];
+    // Edge: EXP one point before the next level (Pokégen "edging"), attached to the EXP box.
+    const edge = next ? h('button', { id: 'ed-edge', class: 'btn', type: 'button', disabled: exp === next - 1,
+      title: exp === next - 1 ? `Already edged: 1 EXP before level ${L + 1}` : `Edge: set EXP to ${(next - 1).toLocaleString()}, 1 point before level ${L + 1}`,
+      onclick: () => edit(r, `Edged: 1 EXP before level ${L + 1}`, () => C.setExp(D, r, next - 1), { full: true }) }, 'Edge') : null;
+    return [field('EXP', h('div', { class: 'input-group' }, box, edge)),
+      h('div', { class: 'exp-row', title: next ? `Level ${L}: ${t[L].toLocaleString()}–${(next - 1).toLocaleString()} EXP` : 'Level 100' },
+        h('span', { class: 'exp-text' },
+          h('span', {}, next ? (exp === next - 1 ? `Edged · 1 EXP to Lv ${L + 1}` : `${(next - exp).toLocaleString()} EXP to Lv ${L + 1}`) : 'Max level'),
+          h('span', { class: 'mono' }, next ? `${(exp - t[L]).toLocaleString()} / ${(next - t[L]).toLocaleString()}` : t[100].toLocaleString())),
+        h('span', { class: 'expbar' }, h('span', { style: `width:${pct}%` })))];
   }
 
   function movesTab(r) {
