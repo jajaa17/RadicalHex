@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('rh', {
   openFile: file => call('open-path', webUtils.getPathForFile(file)),
   save: bytes => call('save', bytes),
   saveAs: bytes => call('save-as', bytes),
+  convertSave: (bytes, format) => call('convert-save', { bytes, format }),
   listBackups: () => call('list-backups'),
   readBackup: p => call('read-backup', p),
   deleteBackups: paths => call('delete-backups', paths),

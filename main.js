@@ -143,6 +143,24 @@ handle('save-as', async bytes => {
   win.__dirty = false;
   return r.filePath;
 });
+// Writes a converted copy of the open save (RetroArch .srm or a plain .sav). The open file is never touched: a
+// copy can't be written over it, a file already at the chosen path is backed up first, and the copy is verified.
+const FORMATS = { srm: { name: 'RetroArch save', size: [0x20000] }, sav: { name: 'GBA battery save', size: [0x20000, 0x20010] } };
+handle('convert-save', async ({ bytes, format } = {}) => {
+  const f = FORMATS[format];
+  if (!f) throw new Error('Unknown save format.');
+  const buf = Buffer.from(bytes || []);
+  if (!f.size.includes(buf.length)) throw new Error('The converted save is the wrong size, so it was not written.');
+  const base = current ? current.path : path.join(readSettings().lastDir || app.getPath('documents'), 'RadicalRed.sav');
+  const r = await dialog.showSaveDialog(win, { title: `Save a ${format === 'srm' ? 'RetroArch .srm' : '.sav'} copy`,
+    defaultPath: base.replace(/(\.\w+)?$/, '.' + format), filters: [{ name: f.name, extensions: [format] }, { name: 'All files', extensions: ['*'] }] });
+  if (r.canceled) return null;
+  if (current && path.resolve(r.filePath).toLowerCase() === path.resolve(current.path).toLowerCase())
+    throw new Error(`That is the save you have open (${current.name}). Pick another name or folder, so the original stays as it is.`);
+  if (fs.existsSync(r.filePath)) backup(path.basename(r.filePath), fs.readFileSync(r.filePath));
+  writeSafely(r.filePath, buf);
+  return r.filePath;
+});
 handle('list-backups', async () => backupDirs().flatMap(dir => fs.readdirSync(dir).filter(f => f.endsWith('.sav')).map(f => {
   const st = fs.statSync(path.join(dir, f));
   return { name: f, path: path.join(dir, f), size: st.size, time: st.mtimeMs, old: dir !== backupDir() };

@@ -838,13 +838,37 @@
     return out;
   }
 
+  // ── Converting between emulators ──
+  // A GBA battery save is the same 128 KB of flash in every emulator. mGBA adds a 16-byte real-time clock block after it
+  // (Radical Red uses the clock for day and night); RetroArch's .srm is the 128 KB alone. Returns the layout of a file.
+  const FLASH = 0x20000, RTC_BLOCK = 16;
+  function saveLayout(bytes) {
+    if (bytes.length === FLASH) return { ok: true, extra: 0, text: '128 KB, no clock data (RetroArch .srm, VBA-M)' };
+    if (bytes.length === FLASH + RTC_BLOCK) return { ok: true, extra: RTC_BLOCK, text: '128 KB + 16 bytes of clock data (mGBA)' };
+    return { ok: false, text: `${bytes.length.toLocaleString()} bytes, which isn't a layout RadicalHex knows how to convert` };
+  }
+  // format 'srm' (RetroArch): the 128 KB alone. format 'sav' (mGBA, VBA-M, My Boy!): the 128 KB, keeping mGBA's clock
+  // block if the file has one. Throws unless the result is a valid save holding exactly the same save data.
+  function convertSave(bytes, format) {
+    const src = new Uint8Array(bytes), lay = saveLayout(src);
+    if (!lay.ok) throw new Error(`This file is ${lay.text}, so it was not converted.`);
+    load(src); // must be a real Radical Red save
+    const out = format === 'srm' ? src.slice(0, FLASH) : format === 'sav' ? src.slice() : null;
+    if (!out) throw new Error('Unknown save format.');
+    let back;
+    try { back = load(out); } catch (e) { throw new Error('The converted save does not load, so it was not written: ' + e.message); }
+    for (let i = 0; i < FLASH; i++) if (out[i] !== src[i]) throw new Error('The converted save does not match the original, so it was not written.');
+    if (back.saveIndex !== load(src).saveIndex) throw new Error('The converted save does not match the original, so it was not written.');
+    return out;
+  }
+
   const api = {
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
-    calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, EV_CAP, EV_TOTAL, clampEvs,
+    calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,

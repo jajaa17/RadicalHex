@@ -42,7 +42,8 @@ h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
 .update-bar { display: block; height: 8px; background: var(--sunk); border-radius: 4px; overflow: hidden; }
 .update-bar > span { display: block; height: 100%; width: 0; background: var(--good); transition: width .2s; }
 .file { display: flex; gap: 14px; align-items: baseline; font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.file b { color: var(--fg); font-weight: 500; }
+.file b { color: var(--fg); font-weight: 500; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.file span { flex: none; } /* on narrow windows the file name shortens first, so "unsaved changes" stays in view */
 .file .ok { color: var(--good); }
 .file .dirty { color: var(--warn); }
 .actions { display: flex; gap: 6px; margin-left: auto; }
@@ -311,15 +312,18 @@ table.enc tr:last-child td { border-bottom: 0; }
 .top .actions { flex: none; }
 .status #status, .status .credit { overflow: hidden; text-overflow: ellipsis; }
 .status .credit { flex: none; }
+@media (max-width: 1440px) { .file span:nth-child(3) { display: none; } } /* "checksums valid" */
+@media (max-width: 1280px) { .file span:nth-child(2) { display: none; } } /* "save #" */
 @media (max-width: 1180px) {
   .top { padding: 8px 12px; gap: 6px 12px; }
-  .file span:nth-child(3) { display: none; } /* "checksums valid" */
   .editor { padding: 12px; }
   .pane { padding: 12px; }
   .pc { padding: 6px; gap: 4px; }
 }
 @media (max-width: 1000px) {
-  .file span:nth-child(2), .status .credit { display: none; }
+  .status .credit { display: none; }
+  .file .long { display: none; } /* "● 2" instead of "● 2 unsaved changes" */
+  .top .actions .btn { padding-inline: 10px; }
   .dex { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(230px, 44%) minmax(0, 1fr); }
   .dex-side { border-right: 0; border-bottom: 1px solid var(--line); }
   .dex-filters { flex-direction: row; flex-wrap: wrap; }

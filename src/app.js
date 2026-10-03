@@ -251,10 +251,12 @@
     $('#btnUndo').disabled = !undo.length;
     for (const id of ['#btnSave', '#btnUndo']) $(id).hidden = !sv;
     $('#btnSaveAs').hidden = !sv || !host;
+    $('#btnConvert').disabled = !sv;
+    $('#btnConvert').hidden = !sv;
     if (!sv) return;
     f.replaceChildren(
       h('b', {}, fileName), h('span', {}, `save #${sv.saveIndex}`), h('span', { class: 'ok' }, '✓ checksums valid'),
-      dirty ? h('span', { class: 'dirty' }, `● ${dirty} unsaved change${dirty === 1 ? '' : 's'}`) : h('span', {}, 'no unsaved changes'));
+      dirty ? h('span', { class: 'dirty', title: `${dirty} unsaved change${dirty === 1 ? '' : 's'}` }, `● ${dirty}`, h('span', { class: 'long' }, ` unsaved change${dirty === 1 ? '' : 's'}`)) : h('span', {}, 'no unsaved changes'));
   }
 
   // ── Storage pane ──
@@ -1063,7 +1065,39 @@
       renderAll();
       status((host ? `Saved ${where}. The previous version is in Backups.` : `Downloaded ${where}. Your original file was not changed.`) + dexNote, 'ok');
       S.play('save');
+      return true;
     } catch (e) { showError('Could not save', e); }
+  }
+
+  // Converts the save as it is on disk into another emulator's layout. Only the file's size changes (mGBA adds
+  // 16 bytes of clock data that RetroArch doesn't use); the game data is copied byte for byte and checked.
+  async function convert() {
+    if (!sv) return;
+    const lay = C.saveLayout(sv.original);
+    if (!lay.ok) { showError('This save can\'t be converted', new Error(`This file is ${lay.text}.`)); return; }
+    const choice = await modal('Convert this save',
+      `${fileName} is ${lay.text}.\n\n`
+      + 'For RetroArch (.srm): for RetroArch on Android or PC with the mGBA or VBA-M core. The .srm must have the same name as your ROM (RadicalRed.gba → RadicalRed.srm) and go in RetroArch\'s saves folder.\n\n'
+      + 'For other emulators (.sav): for mGBA, VBA-M, My Boy!, Pizza Boy and others. Also turns a RetroArch .srm back into a .sav.\n\n'
+      + 'The file you have open is never changed. Close the emulator before copying the new file over its save.',
+      [{ text: 'Cancel' }, { text: 'Other emulators (.sav)' }, { text: 'RetroArch (.srm)', primary: true }]);
+    if (choice < 1) return;
+    const format = choice === 2 ? 'srm' : 'sav';
+    if (dirty) {
+      const go = await modal('Save your changes first?', `You have ${dirty} unsaved change${dirty === 1 ? '' : 's'}. The converted copy is made from the file on disk, so save first to include them.`,
+        [{ text: 'Cancel' }, { text: 'Convert without them' }, { text: 'Save, then convert', primary: true }]);
+      if (go < 1) return;
+      if (go === 2 && !(await save(false))) return;
+    }
+    let out;
+    try { out = C.convertSave(sv.original, format); } catch (e) { showError('Could not convert the save', e); return; }
+    try {
+      let where;
+      if (host) { where = await host.convertSave(out, format); if (!where) return; }
+      else { where = fileName.replace(/(\.\w+)?$/, '.' + format); download(out, where); }
+      status(`${host ? 'Saved' : 'Downloaded'} ${where} (${format === 'srm' ? 'RetroArch' : 'other emulators'}). ${fileName} was not changed.`, 'ok');
+      S.play('save');
+    } catch (e) { showError('Could not convert the save', e); }
   }
 
   // ── Wiring ──
@@ -1133,6 +1167,7 @@
   $('#btnOpen2').onclick = open;
   $('#btnSave').onclick = () => save(false);
   $('#btnSaveAs').onclick = () => save(true);
+  $('#btnConvert').onclick = convert;
   $('#btnUndo').onclick = doUndo;
   for (const b of document.querySelectorAll('.tab')) b.onclick = () => setTab(b.dataset.tab);
   $('#fileInput').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) openBytes(new Uint8Array(await f.arrayBuffer()), f.name); };

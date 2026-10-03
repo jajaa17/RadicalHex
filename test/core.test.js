@@ -417,6 +417,24 @@ for (const file of process.argv.slice(2)) {
     assert.strictEqual(u.length, 1); assert.ok(/unknown species #1500/.test(u[0]));
   });
 
+  t('converts to RetroArch .srm and back without changing the game data', () => {
+    const srm = C.convertSave(bytes, 'srm');
+    assert.strictEqual(srm.length, 0x20000);
+    assert.ok(C.saveLayout(srm).ok);
+    assert.deepStrictEqual(Buffer.from(srm), Buffer.from(bytes.subarray(0, 0x20000)));
+    assert.deepStrictEqual(Buffer.from(C.build(C.load(srm), D)), Buffer.from(srm), 'the .srm round trips');
+    assert.deepStrictEqual(Buffer.from(C.convertSave(bytes, 'sav')), Buffer.from(bytes), '.sav keeps the file as it is');
+    assert.deepStrictEqual(Buffer.from(C.convertSave(srm, 'sav')), Buffer.from(srm));
+    const a = C.load(srm), b = fresh();
+    assert.strictEqual(a.saveIndex, b.saveIndex);
+    assert.strictEqual(C.partyCount(a), C.partyCount(b));
+    assert.throws(() => C.convertSave(bytes, 'gba'));
+    assert.throws(() => C.convertSave(new Uint8Array(0x20000), 'srm'), 'a blank file is refused');
+    assert.throws(() => C.convertSave(new Uint8Array(0x20008), 'srm'), 'an unknown size is refused');
+    const bad = bytes.slice(); bad[fresh().sec[1] + 0x100] ^= 0xFF;
+    assert.throws(() => C.convertSave(bad, 'srm'), 'a damaged save is refused');
+  });
+
   t('every species marked addable has data and a valid nickname', () => {
     for (let i = 1; i < D.species.length; i++) {
       const s = D.species[i]; if (!s.n || !s.g) continue;

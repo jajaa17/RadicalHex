@@ -98,7 +98,19 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - Undo (Ctrl+Z) for every edit, and a warning before closing with unsaved changes.
 - The Open dialog starts in the folder of the last save you opened.
 
-### Sounds and cries
+### Save converter (RetroArch .srm ↔ .sav)
+Play on your phone with RetroArch, then carry on on your PC (or the other way around).
+- **Convert…** in the top bar makes a copy of your save for another emulator:
+  - **RetroArch (.srm)** for RetroArch on Android or PC, with the mGBA or VBA-M core
+  - **Other emulators (.sav)** for mGBA, VBA-M, My Boy!, Pizza Boy and others. This also turns a RetroArch `.srm` back into a `.sav`
+- Only the file's layout changes. mGBA adds 16 bytes of clock data after the 128 KB of game data, and RetroArch doesn't use them. Your Pokémon, bag, Pokédex and progress are copied byte for byte.
+- Failsafes:
+  - The save you have open is never changed, and the copy can't be written over it.
+  - The copy is checked before it is written. RadicalHex loads it as a save and compares it with the original, so a damaged or non-Radical Red file isn't converted.
+  - Like a normal save, it is written to a temporary file first, then verified and swapped in.
+  - If a file with that name is already there, it is backed up to `Backups` first.
+  - With unsaved changes, RadicalHex asks whether to save first. The copy is made from the file on disk.
+
 - Every Pokémon has a **Cry** button (in the editor and the RadicalDex). Clicking its big sprite plays the cry too, and it hops along
 - Little GBA-style sounds for clicks, tabs, picking from lists, saving, undo, errors, adding a Pokémon (a Poké Ball catch), releasing, healing and making a Pokémon shiny
 - The speaker button in the top bar turns the sounds off or on. Cries still play when you ask for one
@@ -120,7 +132,7 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 
 1. **Close the game in your emulator** (or at least do not save in-game) before editing, or the emulator may overwrite your changes.
 2. Open your battery save (`.sav` / `.srm`), not a save state.
-3. Edit, then press **Save** (Ctrl+S). Use **Save as…** to write a copy instead.
+3. Edit, then press **Save** (Ctrl+S). Use **Save as…** to write a copy instead, or **Convert…** to make a copy for RetroArch (`.srm`) or other emulators (`.sav`).
 4. Load the save in your emulator.
 
 Good to know:
@@ -137,7 +149,16 @@ PKHeX can't edit Radical Red saves properly, because Radical Red is built on the
 Close the game, download `RadicalHex.exe` from the [Releases page](https://github.com/jajaa17/RadicalHex/releases/latest), open your `.sav` (or `.srm`), make your changes and press **Save**. Then load the game again. See [Using it](#using-it).
 
 **Which saves does it open?**
-Radical Red battery saves (`.sav`, `.srm`), as written by emulators like mGBA. Not save states. If your emulator is on a phone, copy the save to a PC, edit it there and copy it back.
+Radical Red battery saves (`.sav`, `.srm`) from emulators like mGBA, VBA-M, RetroArch and My Boy!. Not save states. If your emulator is on a phone, copy the save to a PC, edit it there and copy it back.
+
+**How do I play the same save on my phone (RetroArch) and my PC?**
+1. On the PC, open your save in RadicalHex and press **Convert…** → **RetroArch (.srm)**.
+2. Give the `.srm` the same name as your ROM. For example, if the ROM is `Pokemon Radical Red.gba`, the save must be `Pokemon Radical Red.srm`.
+3. Copy it to your phone, for example through Google Drive, into RetroArch's saves folder. That is often `RetroArch/saves` (or a folder inside it named after the core, such as `saves/mGBA`), but check **Settings → Directory → Save Files** in RetroArch.
+4. Close RetroArch's game before copying the save over, then load the ROM. Use in-game saves, not save states.
+5. To go back to the PC, copy the `.srm` from the phone, open it in RadicalHex, press **Convert…** → **Other emulators (.sav)**, and save it with your ROM's name next to your PC emulator's saves.
+
+Keep a copy of your save before swapping files around. RadicalHex keeps one in `Backups` every time you open a file.
 
 **Which version of Radical Red?**
 Radical Red **4.1**. It is built from 4.1's own data and tested on real 4.1 saves.
@@ -205,6 +226,7 @@ The screenshots in `docs` are made from a demo save with `npx electron tools/scr
 - [Complete Fire Red Upgrade](https://github.com/Skeli789/Complete-Fire-Red-Upgrade), the engine Radical Red is built on
 - Radical Red's own `Base_Stats.c` (from the history of [Ydarissep/Radical-Red-Pokedex](https://github.com/Ydarissep/Radical-Red-Pokedex)) for experience growth rates
 - [PokéAPI](https://github.com/PokeAPI/pokeapi) for national Pokédex numbers and gender ratios, [PokéAPI sprites](https://github.com/PokeAPI/sprites) for the Pokémon sprites, and [PokéAPI cries](https://github.com/PokeAPI/cries) for the cries
+- [RetroArch](https://www.retroarch.com/) by the libretro team and [mGBA](https://mgba.io/) by endrift, whose save formats the save converter works with
 - Pokémon Radical Red by soupercell and the Radical Red team
 
 RadicalHex is a fan project and is not affiliated with Nintendo, Creatures Inc., GAME FREAK inc. or The Pokémon Company. Pokémon names, sprites and cries are © their respective owners. Please do not use edited Pokémon against people who have not agreed to it.
