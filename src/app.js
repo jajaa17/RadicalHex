@@ -271,28 +271,55 @@
           illegal(ref) ? h('span', { class: 'illegal-mark', title: 'Illegal: open it to see why' }, '✕') : null),
         lv && !party ? h('span', { class: 'lv' }, 'Lv' + lv) : null,
         M.item(ref) ? h('span', { class: 'held', title: 'Holding ' + (D.items[M.item(ref)] || 'an item') }, itemIcon(M.item(ref))) : null].filter(Boolean));
-      if (!party) {
-        el.draggable = true;
-        el.addEventListener('dragstart', e => { e.dataTransfer.setData('text/rh-slot', `${b},${s}`); e.dataTransfer.effectAllowed = 'move'; });
-      }
+      dragSource(el, { party, box: b, slot: s });
     } else {
-      el.title = party ? 'Empty party slot' : 'Empty — click to add a Pokémon';
-      if (party) el.append(h('span', { class: 'pinfo muted' }, 'Empty'));
+      el.title = 'Empty — click to add a Pokémon';
+      if (party) el.append(h('span', { class: 'pinfo muted' }, '＋ Add'));
     }
-    if (!party) {
-      el.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/rh-slot')) { e.preventDefault(); el.classList.add('drop'); } });
-      el.addEventListener('dragleave', () => el.classList.remove('drop'));
-      el.addEventListener('drop', e => {
-        el.classList.remove('drop');
-        const v = e.dataTransfer.getData('text/rh-slot');
-        if (!v) return;
-        e.preventDefault();
-        const [fb, fs] = v.split(',').map(Number);
-        if (fb === b && fs === s) return;
-        if (change(`Moved ${spName(M.species(C.boxRef(sv, fb, fs)))} to ${C.boxName(sv, b)}`, () => C.swap(C.boxRef(sv, fb, fs), C.boxRef(sv, b, s)))) select(false, b, s);
-      });
-    }
+    dropTarget(el, { party, box: b, slot: s });
     return el;
+  }
+
+  // ── Drag and drop: any Pokémon (box or party) onto any slot. Holding it over ‹ or › flips through the boxes. ──
+  const DRAG = 'text/rh-slot';
+  let dragFrom = null, flipTimer = 0;
+  const stopFlip = () => { clearTimeout(flipTimer); flipTimer = 0; };
+  function dragSource(el, where) {
+    el.draggable = true;
+    el.addEventListener('dragstart', e => { dragFrom = where; e.dataTransfer.setData(DRAG, JSON.stringify(where)); e.dataTransfer.effectAllowed = 'move'; el.classList.add('dragging'); });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragFrom = null; stopFlip(); });
+  }
+  function dropTarget(el, where) {
+    el.addEventListener('dragover', e => { if (!e.dataTransfer.types.includes(DRAG)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drop'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drop'));
+    el.addEventListener('drop', e => {
+      el.classList.remove('drop');
+      if (!e.dataTransfer.types.includes(DRAG)) return;
+      e.preventDefault(); stopFlip();
+      let from = null;
+      try { from = JSON.parse(e.dataTransfer.getData(DRAG)); } catch { from = dragFrom; }
+      dragFrom = null;
+      if (from) dropMon(from, where);
+    });
+  }
+  function flipOnHover(btn, step) {
+    btn.addEventListener('dragover', e => {
+      if (!e.dataTransfer.types.includes(DRAG)) return;
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move'; btn.classList.add('drop');
+      if (!flipTimer) flipTimer = setTimeout(() => { flipTimer = 0; box = (box + step + C.BOXES) % C.BOXES; renderBoxes(); }, 650);
+    });
+    btn.addEventListener('dragleave', () => { btn.classList.remove('drop'); stopFlip(); });
+    btn.addEventListener('drop', e => { e.preventDefault(); btn.classList.remove('drop'); stopFlip(); });
+  }
+  const refAt = w => (w.party ? (w.slot < C.partyCount(sv) ? C.partyRef(sv, w.slot) : null) : C.boxRef(sv, w.box, w.slot));
+  function dropMon(from, to) {
+    const a = refAt(from), b = refAt(to);
+    if (!filled(a)) return;
+    const name = M.nickname(a) || spName(M.species(a)), other = filled(b) ? M.nickname(b) || spName(M.species(b)) : '';
+    // Where it ends up: dropped on an empty party slot it goes last, as the party has no gaps.
+    const n = C.partyCount(sv), land = to.party && !filled(b) ? { party: true, box: 0, slot: from.party ? n - 1 : n } : to;
+    const what = other ? `Swapped ${name} and ${other}` : `Moved ${name} to ${to.party ? 'your party' : C.boxName(sv, to.box)}`;
+    if (change(what, () => C.moveMon(sv, D, X, from, to), { full: true })) select(land.party, land.party ? sel.box : land.box, land.slot);
   }
   function renderBoxes() {
     trim();
@@ -301,17 +328,23 @@
       Array.from({ length: C.BOXES }, (_, b) => h('option', { value: b, selected: b === box }, `${C.boxName(sv, b)}  (${boxCount(b)}/30)`)));
     const grid = h('div', { class: 'pc' });
     for (let s = 0; s < C.SLOTS; s++) grid.append(slotButton(C.boxRef(sv, box, s), false, box, s, 72));
+    const n = C.partyCount(sv);
+    const partyCol = h('div', { class: 'party-col' }, h('div', { class: 'section-title' }, `Party (${n}/6)`),
+      h('div', { class: 'party' }, Array.from({ length: 6 }, (_, s) => slotButton(s < n ? C.partyRef(sv, s) : null, true, 0, s, 48))));
+    const prev = h('button', { id: 'boxPrev', class: 'btn', type: 'button', title: 'Previous box (hold a Pokémon here to flip)', onclick: () => { box = (box + C.BOXES - 1) % C.BOXES; renderBoxes(); } }, '‹');
+    const next = h('button', { id: 'boxNext', class: 'btn', type: 'button', title: 'Next box (hold a Pokémon here to flip)', onclick: () => { box = (box + 1) % C.BOXES; renderBoxes(); } }, '›');
+    flipOnHover(prev, -1); flipOnHover(next, 1);
     put(pane,
       h('div', { class: 'boxbar' },
-        h('button', { class: 'btn', type: 'button', title: 'Previous box', onclick: () => { box = (box + C.BOXES - 1) % C.BOXES; renderBoxes(); } }, '‹'),
+        prev,
         pick,
-        h('button', { class: 'btn', type: 'button', title: 'Next box', onclick: () => { box = (box + 1) % C.BOXES; renderBoxes(); } }, '›'),
+        next,
         h('span', { class: 'spacer' }),
         illegalButton(),
         h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 25 boxes' }, 'Max IVs on everything')),
-      grid,
+      h('div', { class: 'storage' }, grid, partyCol),
       box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
-      h('p', { class: 'note' }, 'Drag a Pokémon onto another slot to move or swap it. "Move to box" and "Move to party" in the editor send it further. Click an empty slot to add a new Pokémon.'));
+      h('p', { class: 'note' }, 'Drag a Pokémon onto any box or party slot to move or swap it. Hold it over ‹ or › to flip to another box. Click an empty slot to add a new Pokémon.'));
   }
 
   function healParty() {
@@ -329,13 +362,15 @@
     for (let s = 0; s < 6; s++) {
       const r = s < n ? C.partyRef(sv, s) : null;
       if (!filled(r)) {
-        cards.push(h('button', { type: 'button', class: 'pcard empty' + (sel.party && sel.slot === s ? ' sel' : ''), title: 'Add a Pokémon to your party', onclick: () => select(true, 0, s) },
-          h('span', { class: 'muted' }, '＋ Add a Pokémon')));
+        const card = h('button', { type: 'button', class: 'pcard empty' + (sel.party && sel.slot === s ? ' sel' : ''), title: 'Add a Pokémon to your party', onclick: () => select(true, 0, s) },
+          h('span', { class: 'muted' }, '＋ Add a Pokémon'));
+        dropTarget(card, { party: true, box: 0, slot: s });
+        cards.push(card);
         continue;
       }
       const sp = M.species(r), st = M.partyStats(r), hp = r.buf[r.off + 0x56] | (r.buf[r.off + 0x57] << 8);
       const pct = st[0] ? Math.max(0, Math.min(100, Math.round(hp / st[0] * 100))) : 0;
-      cards.push(h('button', { type: 'button', class: 'pcard' + (sel.party && sel.slot === s ? ' sel' : ''), onclick: () => select(true, 0, s) },
+      const card = h('button', { type: 'button', class: 'pcard' + (sel.party && sel.slot === s ? ' sel' : ''), onclick: () => select(true, 0, s) },
         sprite(sp, M.shiny(r), 96, M.isEgg(r)),
         h('span', { class: 'pcard-body' },
           h('span', { class: 'pcard-head' }, h('strong', {}, M.nickname(r) || spName(sp)), M.shiny(r) ? h('span', { class: 'star' }, '★') : null,
@@ -344,13 +379,16 @@
           h('span', { class: 'note' }, `${spName(sp)} · ${C.NATURES[M.nature(r)]}`),
           h('span', { class: 'note held-line' }, itemIcon(M.item(r)), M.item(r) ? 'Holding ' + (D.items[M.item(r)] || '#' + M.item(r)) : 'No held item'),
           h('span', { class: 'hpbar', title: `HP ${hp}/${st[0]}` }, h('span', { class: pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low', style: `width:${pct}%` })),
-          h('span', { class: 'pcard-moves' }, M.moves(r).map(m => h('span', {}, m ? D.moves[m] || '#' + m : '—'))))));
+          h('span', { class: 'pcard-moves' }, M.moves(r).map(m => h('span', {}, m ? D.moves[m] || '#' + m : '—')))));
+      dragSource(card, { party: true, box: 0, slot: s });
+      dropTarget(card, { party: true, box: 0, slot: s });
+      cards.push(card);
     }
     put($('#pane-party'),
       h('div', { class: 'row' }, h('div', { class: 'section-title' }, `Party (${n}/6)`), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', disabled: !n, title: 'Restore HP, cure status conditions and refill PP for every party Pokémon', onclick: healParty }, 'Heal party')),
       h('div', { class: 'party-cards' }, cards),
-      h('p', { class: 'note' }, 'Click a Pokémon to edit it, or an empty slot to add one. "Move to box" in the editor puts a party Pokémon in a box.'));
+      h('p', { class: 'note' }, 'Click a Pokémon to edit it, or an empty slot to add one. Drag a Pokémon onto another to swap their places. "Move to box" in the editor, or dragging in the Boxes tab, puts it in a box.'));
   }
   // Lists every illegal Pokémon in the save; clicking jumps to the next one.
   function illegalButton() {
@@ -864,6 +902,7 @@
   // ── Backups pane ──
   let backupWhere = ''; // the backups folder, from the desktop app
   if (host && host.backupDir) host.backupDir().then(d => { backupWhere = d; }).catch(() => {});
+  const picked = new Set(); // backups ticked for deleting (by path)
   async function renderBackups() {
     const pane = $('#pane-backups');
     if (!host) {
@@ -875,14 +914,40 @@
     let list = [];
     try { list = await host.listBackups(); } catch (e) { status(e.message, 'err'); }
     if (tab !== 'backups') return; // switched tabs while the list was loading
+    for (const p of [...picked]) if (!list.some(b => b.path === p)) picked.delete(p);
+    // Backups are named "<save> (<date time>).sav"; "keep the newest 5" works per save.
+    const saveOf = b => b.name.replace(/ \(\d{4}-\d\d-\d\d \d\d-\d\d-\d\d\)\.sav$/i, '');
+    const keepNewest = k => { picked.clear(); const seen = new Map(); for (const b of list) { const n = (seen.get(saveOf(b)) || 0) + 1; seen.set(saveOf(b), n); if (n > k) picked.add(b.path); } renderBackups(); };
+    const del = async () => {
+      const files = list.filter(b => picked.has(b.path));
+      if (!files.length) return;
+      const left = list.length - files.length;
+      const choice = await modal(`Delete ${files.length} backup${files.length === 1 ? '' : 's'}?`,
+        `${files.slice(0, 8).map(b => b.name).join('\n')}${files.length > 8 ? `\n…and ${files.length - 8} more` : ''}\n\nThis can't be undone.${left ? '' : ' No backups will be left.'}`,
+        [{ text: 'Cancel' }, { text: 'Delete', primary: true }]);
+      if (choice !== 1) return;
+      try { const n = await host.deleteBackups(files.map(b => b.path)); picked.clear(); status(`Deleted ${n} backup${n === 1 ? '' : 's'}.`, 'ok'); }
+      catch (e) { status(e.message, 'err'); }
+      renderBackups();
+    };
+    const all = list.length > 0 && list.every(b => picked.has(b.path));
     put(pane,
       h('div', { class: 'row' }, h('h3', {}, 'Backups'), h('span', { class: 'grow' }),
         h('button', { class: 'btn', type: 'button', onclick: async () => { try { await host.backupNow(sv.original); status('Backed up the file as it is on disk.', 'ok'); renderBackups(); } catch (e) { status(e.message, 'err'); } } }, 'Back up now'),
         h('button', { class: 'btn', type: 'button', onclick: () => host.showBackups() }, 'Open backups folder')),
       h('p', { class: 'note' }, `Stored in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}. A new backup is made when you open a save and right before every Save, unless the file has not changed since the last backup.`
         + (list.some(b => b.old) ? ' Backups marked "older" are from earlier versions, which kept them in Documents\\RadicalHex\\Backups.' : '')),
-      list.length ? h('table', { class: 'backups' }, h('thead', {}, h('tr', {}, h('th', {}, 'File'), h('th', {}, 'Made'), h('th', {}, 'Size'), h('th', {}))),
-        h('tbody', {}, list.map(b => h('tr', {}, h('td', {}, b.name, b.old ? h('span', { class: 'chip', style: 'margin-left:8px' }, 'older') : null), h('td', { class: 'mono' }, new Date(b.time).toLocaleString()), h('td', { class: 'mono' }, Math.round(b.size / 1024) + ' KB'),
+      list.length ? h('div', { class: 'row' },
+        h('button', { class: 'btn small', type: 'button', title: 'Select every backup except the 5 newest of each save', onclick: () => keepNewest(5) }, 'Select all but the newest 5'),
+        picked.size ? h('button', { class: 'btn small', type: 'button', onclick: () => { picked.clear(); renderBackups(); } }, 'Clear selection') : null,
+        h('span', { class: 'grow' }),
+        h('button', { id: 'bk-delete', class: 'btn small danger', type: 'button', disabled: !picked.size, onclick: del }, picked.size ? `Delete selected (${picked.size})` : 'Delete selected')) : null,
+      list.length ? h('table', { class: 'backups' }, h('thead', {}, h('tr', {},
+        h('th', { class: 'x' }, h('input', { id: 'bk-all', type: 'checkbox', checked: all, 'aria-label': 'Select every backup', onchange: e => { picked.clear(); if (e.target.checked) for (const b of list) picked.add(b.path); renderBackups(); } })),
+        h('th', {}, 'File'), h('th', {}, 'Made'), h('th', {}, 'Size'), h('th', {}))),
+        h('tbody', {}, list.map(b => h('tr', { class: picked.has(b.path) ? 'picked' : null },
+          h('td', { class: 'x' }, h('input', { type: 'checkbox', checked: picked.has(b.path), 'aria-label': 'Select ' + b.name, onchange: e => { if (e.target.checked) picked.add(b.path); else picked.delete(b.path); renderBackups(); } })),
+          h('td', {}, b.name, b.old ? h('span', { class: 'chip', style: 'margin-left:8px' }, 'older') : null), h('td', { class: 'mono' }, new Date(b.time).toLocaleString()), h('td', { class: 'mono' }, Math.round(b.size / 1024) + ' KB'),
           h('td', {}, h('button', { class: 'btn small', type: 'button', onclick: () => restoreBackup(b) }, 'Restore')))))) : h('p', { class: 'note' }, 'No backups yet.'));
   }
   async function restoreBackup(b) {

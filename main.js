@@ -152,6 +152,15 @@ handle('read-backup', async p => {
   if (!backupDirs().includes(path.dirname(full))) throw new Error('That file is not in a RadicalHex backups folder.');
   return new Uint8Array(fs.readFileSync(full));
 });
+// Deletes backups the user picked. Only .sav files directly inside a RadicalHex backups folder can be deleted.
+handle('delete-backups', async paths => {
+  const dirs = backupDirs();
+  const ok = (Array.isArray(paths) ? paths : []).map(p => path.resolve(String(p)))
+    .filter(f => f.toLowerCase().endsWith('.sav') && dirs.includes(path.dirname(f)) && fs.existsSync(f));
+  let n = 0;
+  for (const f of ok) { fs.rmSync(f); n++; }
+  return n;
+});
 handle('backup-now', async bytes => backup(current ? current.name : 'RadicalRed.sav', Buffer.from(bytes)));
 handle('show-backups', async () => { fs.mkdirSync(backupDir(), { recursive: true }); return shell.openPath(backupDir()); });
 handle('backup-dir', async () => backupDir());

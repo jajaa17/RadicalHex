@@ -661,6 +661,44 @@
     sv.data.fill(0, base + (n - 1) * PARTY_MON, base + n * PARTY_MON);
     setPartyCount(sv, n - 1);
   }
+  const nonEggsBut = (sv, i) => { let n = 0; for (let k = 0; k < partyCount(sv); k++) if (k !== i && !mon.isEgg(partyRef(sv, k))) n++; return n; };
+  // Party slot i <-> a box slot holding a Pokémon: each goes where the other was (box one withdrawn, party one deposited).
+  function swapBoxParty(sv, D, X, bref, i) {
+    if (bref.party || mon.empty(bref) || i >= partyCount(sv)) throw new Error('Pick a box Pokémon and a party Pokémon.');
+    const p = partyRef(sv, i);
+    if (mon.isEgg(bref) && !mon.isEgg(p) && !nonEggsBut(sv, i)) throw new Error("That's your last Pokémon (eggs don't count). The game needs at least one in the party.");
+    const tmp = { buf: bref.buf.slice(bref.off, bref.off + BOX_MON), off: 0, party: false };
+    release(bref);
+    copyToBox(D, p, bref);
+    boxToParty(D, X, tmp, p);
+  }
+  // Moves party slot i onto party slot j: two Pokémon swap places; an empty slot j puts it last (the party stays packed).
+  function moveInParty(sv, i, j) {
+    const n = partyCount(sv), base = sv.sec[1] + 0x38;
+    if (i >= n || i === j) return false;
+    const a = sv.data.slice(base + i * PARTY_MON, base + (i + 1) * PARTY_MON);
+    if (j < n) {
+      sv.data.copyWithin(base + i * PARTY_MON, base + j * PARTY_MON, base + (j + 1) * PARTY_MON);
+      sv.data.set(a, base + j * PARTY_MON);
+    } else {
+      if (i === n - 1) return false;
+      sv.data.copyWithin(base + i * PARTY_MON, base + (i + 1) * PARTY_MON, base + n * PARTY_MON);
+      sv.data.set(a, base + (n - 1) * PARTY_MON);
+    }
+    return true;
+  }
+  // One drag and drop: from and to are { party, box, slot }. Returns false when nothing moves.
+  function moveMon(sv, D, X, from, to) {
+    if (from.party === to.party && from.slot === to.slot && (from.party || from.box === to.box)) return false;
+    if (from.party && to.party) return moveInParty(sv, from.slot, to.slot);
+    if (!from.party && !to.party) { const a = boxRef(sv, from.box, from.slot); if (mon.empty(a)) return false; swap(a, boxRef(sv, to.box, to.slot)); return true; }
+    const b = from.party ? boxRef(sv, to.box, to.slot) : boxRef(sv, from.box, from.slot), i = from.party ? from.slot : to.slot;
+    if (from.party) { if (mon.empty(b)) deposit(sv, D, i, b); else swapBoxParty(sv, D, X, b, i); }
+    else if (mon.empty(b)) return false;
+    else if (i >= partyCount(sv)) withdraw(sv, D, X, b);
+    else swapBoxParty(sv, D, X, b, i);
+    return true;
+  }
   // Creates a new Pokémon straight in the party (same options as createInBox). Returns its party slot.
   function createInParty(sv, D, X, opts) {
     const n = partyCount(sv);
@@ -766,7 +804,7 @@
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp), // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,

@@ -327,6 +327,49 @@ for (const file of process.argv.slice(2)) {
     M.setOtName(slot, ''); assert.ok(C.legality(D, X, slot).some(p => p.level === 'error' && /trainer name/.test(p.text)), 'empty OT is illegal');
   });
 
+  t('drag and drop: party reorder, box to box, party to box, box to party, swaps', () => {
+    const sv = fresh(), P = i => ({ party: true, box: 0, slot: i }), B = (b, s2) => ({ party: false, box: b, slot: s2 });
+    const id = r => (M.empty(r) ? '-' : [M.pid(r), M.species(r), M.exp(r), M.moves(r).join(), M.evs(r).join(), M.ivWord(r), M.nickname(r), M.otName(r)].join('|'));
+    const empty = () => { for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) if (M.empty(C.boxRef(sv, b, s2))) return [b, s2]; };
+    const filledBox = () => { for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) if (!M.empty(C.boxRef(sv, b, s2)) && X.species[M.species(C.boxRef(sv, b, s2))]) return [b, s2]; };
+    const gar = D.species.findIndex(x => x.n === 'Garchomp'), mv = [D.moves.indexOf('Earthquake'), 0, 0, 0];
+    while (C.partyCount(sv) < 3) C.createInParty(sv, D, X, { species: gar, level: 40 + C.partyCount(sv), nature: 3, moves: mv });
+    const n = C.partyCount(sv), p0 = id(C.partyRef(sv, 0)), p1 = id(C.partyRef(sv, 1));
+    assert.ok(C.moveMon(sv, D, X, P(0), P(1)));
+    assert.strictEqual(id(C.partyRef(sv, 0)), p1); assert.strictEqual(id(C.partyRef(sv, 1)), p0);
+    assert.ok(C.moveMon(sv, D, X, P(0), P(5)) || n === 1, 'to an empty party slot: goes last');
+    assert.strictEqual(id(C.partyRef(sv, n - 1)), p1); assert.strictEqual(C.partyCount(sv), n);
+    assert.strictEqual(C.moveMon(sv, D, X, P(2), P(2)), false);
+    // box to box across boxes (swap and move to empty)
+    if (!filledBox()) { const [b0, s0] = empty(); C.createInBox(sv, D, C.boxRef(sv, b0, s0), { species: gar, level: 30, nature: 1, moves: mv }); }
+    let [fb, fs] = filledBox(), [eb, es] = empty();
+    const bx = id(C.boxRef(sv, fb, fs));
+    assert.ok(C.moveMon(sv, D, X, B(fb, fs), B(eb, es)));
+    assert.strictEqual(id(C.boxRef(sv, eb, es)), bx); assert.ok(M.empty(C.boxRef(sv, fb, fs)));
+    assert.strictEqual(C.moveMon(sv, D, X, B(fb, fs), B(eb, es)), false, 'dragging an empty slot does nothing');
+    // party to an empty box slot (deposit), then back to the party (withdraw)
+    const last = id(C.partyRef(sv, 0)), cnt = C.partyCount(sv); [eb, es] = empty();
+    assert.ok(C.moveMon(sv, D, X, P(0), B(eb, es)));
+    assert.strictEqual(C.partyCount(sv), cnt - 1); assert.strictEqual(id(C.boxRef(sv, eb, es)), last);
+    assert.ok(C.moveMon(sv, D, X, B(eb, es), P(5)));
+    assert.strictEqual(C.partyCount(sv), cnt); assert.strictEqual(id(C.partyRef(sv, cnt - 1)), last); assert.ok(M.empty(C.boxRef(sv, eb, es)));
+    // box Pokémon onto a party Pokémon: they trade places, the new party one gets full HP and fresh stats
+    [fb, fs] = [eb, es]; C.createInBox(sv, D, C.boxRef(sv, fb, fs), { species: gar, level: 55, nature: 0, moves: mv });
+    const inBox = id(C.boxRef(sv, fb, fs)), inParty = id(C.partyRef(sv, 1));
+    assert.ok(C.moveMon(sv, D, X, B(fb, fs), P(1)));
+    const r = C.partyRef(sv, 1);
+    assert.strictEqual(id(r), inBox); assert.strictEqual(id(C.boxRef(sv, fb, fs)), inParty); assert.strictEqual(C.partyCount(sv), cnt);
+    assert.strictEqual(r.buf[r.off + 0x56] | (r.buf[r.off + 0x57] << 8), M.partyStats(r)[0]); assert.ok(!C.legality(D, X, r).some(p => p.field === 'stats'));
+    assert.ok(C.moveMon(sv, D, X, P(1), B(fb, fs)), 'and back');
+    assert.strictEqual(id(C.partyRef(sv, 1)), inParty); assert.strictEqual(id(C.boxRef(sv, fb, fs)), inBox);
+    // the last Pokémon can't leave
+    while (C.partyCount(sv) > 1) { const [b2, s3] = empty(); C.moveMon(sv, D, X, P(0), B(b2, s3)); }
+    const [b4, s4] = empty();
+    assert.throws(() => C.moveMon(sv, D, X, P(0), B(b4, s4)), /last Pokémon/);
+    const back = C.load(C.build(sv, D));
+    assert.strictEqual(C.partyCount(back), 1);
+  });
+
   t('every species marked addable has data and a valid nickname', () => {
     for (let i = 1; i < D.species.length; i++) {
       const s = D.species[i]; if (!s.n || !s.g) continue;

@@ -30,7 +30,7 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - All 25 boxes (23–25 unlock in the game as your PC fills up) with normal and shiny sprites, a star for shinies, a mark for perfect IVs and the icon of each held item
 - Add a new Pokémon to any empty slot: species, level, nature, gender, shiny, held item, Poké Ball, friendship, ability, moves, IVs and EVs
 - Paste a Pokémon Showdown set to fill in a new Pokémon, or copy any Pokémon as a Showdown set
-- Drag to move or swap Pokémon within a box, clone them, release them
+- **Drag and drop like PKHeX:** your party is shown next to the box. Drag any Pokémon onto any box or party slot to move it there, or onto another Pokémon to swap them. Hold a Pokémon over ‹ or › to flip to another box. Clone and release from the editor
 - **Move to box** sends a Pokémon to the first free slot of any other box, and **Move to party** puts it at the end of your party
 - Max IVs on every Pokémon in one click
 
@@ -40,7 +40,7 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves
 - **Heal**: restore HP (fainted Pokémon included), cure poison, burn, sleep, freeze and paralysis, and refill PP, for one Pokémon or the whole party
 - **Add a Pokémon straight to your party**: click an empty party slot
-- **Move to box** puts a party Pokémon in a box, and the rest of the party moves up, like in the game. Your last Pokémon has to stay (eggs don't count)
+- Drag party cards onto each other to change the order. **Move to box** (or dragging in the Boxes tab) puts a party Pokémon in a box, and the rest of the party moves up, like in the game. Your last Pokémon has to stay (eggs don't count)
 - Edit them like any other Pokémon, or copy them into a box. Their battle stats update automatically when you change level, nature, IVs or EVs
 
 ### Editing a Pokémon
@@ -90,7 +90,7 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - Settings are remembered per trainer
 
 ### Safety
-- A backup is saved to the `Backups` folder next to RadicalHex.exe every time you open a save and right before every save. Restore any of them from the **Backups** tab, which also lists backups made by versions before 1.0.5 (those were kept in `Documents\RadicalHex\Backups`).
+- A backup is saved to the `Backups` folder next to RadicalHex.exe every time you open a save and right before every save. Restore any of them from the **Backups** tab. To keep the folder tidy, tick backups and delete them, or use **Select all but the newest 5** (per save). The tab also lists backups made by versions before 1.0.5 (those were kept in `Documents\RadicalHex\Backups`).
 - Every save is checked before it is written. RadicalHex rebuilds the file, reloads it, makes sure only the parts it is allowed to edit changed, and validates every Pokémon and bag entry you touched. If anything is off, nothing is written.
 - Files are written to a temporary file first, verified, then swapped in.
 - Only the newest save slot is edited, so the game's previous save stays as a fallback.

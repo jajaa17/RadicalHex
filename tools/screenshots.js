@@ -116,12 +116,13 @@ function shoot() {
   app.disableHardwareAcceleration();
   app.whenReady().then(async () => {
     nativeTheme.themeSource = 'dark'; // RadicalHex follows the Windows theme; the README shows the dark one
-    const win = new BrowserWindow({ width: 1440, height: 880, useContentSize: true, show: false, backgroundColor: '#141217',
-      webPreferences: { preload: path.join(root, 'preload.js'), contextIsolation: true, sandbox: true } });
+    // Shown, and never throttled: a hidden window can hand capturePage a frame from before the last change.
+    const win = new BrowserWindow({ width: 1440, height: 880, useContentSize: true, show: true, backgroundColor: '#141217',
+      webPreferences: { preload: path.join(root, 'preload.js'), contextIsolation: true, sandbox: true, backgroundThrottling: false } });
     await win.webContents.session.clearStorageData(); // no Nuzlocke or RadicalHaX settings left from an earlier run
     await win.loadFile(path.join(root, 'src', 'index.html'));
     const js = code => win.webContents.executeJavaScript(`{ ${code} }`); // a block, so each step has its own consts
-    const shot = async name => { await wait(700); fs.writeFileSync(path.join(root, 'docs', `screenshot-${name}.png`), (await win.webContents.capturePage()).toPNG()); console.log('docs/screenshot-' + name + '.png'); };
+    const shot = async name => { await wait(400); await js(`Promise.all([...document.images].filter(i => i.getBoundingClientRect().width).map(i => i.decode().catch(() => {})))`); await wait(400); fs.writeFileSync(path.join(root, 'docs', `screenshot-${name}.png`), (await win.webContents.capturePage()).toPNG()); console.log('docs/screenshot-' + name + '.png'); };
     const bytes = Buffer.from(demoSave()).toString('base64');
     await js(`RadicalHex.openBytes(Uint8Array.from(atob('${bytes}'), c => c.charCodeAt(0)), 'RadicalRed.sav'); document.querySelector('#status').textContent = 'Opened RadicalRed.sav. A backup was saved in C:\\\\Games\\\\RadicalHex\\\\Backups.';`);
     // Boxes: Garchomp, with its hidden ability and held item.

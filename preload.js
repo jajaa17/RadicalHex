@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('rh', {
   saveAs: bytes => call('save-as', bytes),
   listBackups: () => call('list-backups'),
   readBackup: p => call('read-backup', p),
+  deleteBackups: paths => call('delete-backups', paths),
   backupNow: bytes => call('backup-now', bytes),
   showBackups: () => call('show-backups'),
   backupDir: () => call('backup-dir'),
