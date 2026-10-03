@@ -501,11 +501,12 @@
         const v = e.target.value.trim() || C.defaultNickname(D, sp);
         if (!C.encodeText(v, 10)) { e.target.classList.add('bad'); status('That nickname uses a character the game cannot show.', 'err'); return; }
         edit(r, 'Renamed to ' + v, () => M.setNickname(r, v), { full: true });
-      } })),
+      } }), ' wide'),
       field(lv ? 'Level' : 'Level (no data for this species)', h('input', { id: 'ed-level', type: 'number', min: 1, max: 100, value: lv || '', disabled: !lv, onchange: e => {
         const L = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1));
         edit(r, 'Set level ' + L, () => C.setLevel(D, r, L), { full: true });
       } })),
+      expField(r),
       field('Nature', h('select', { id: 'ed-nature', onchange: e => edit(r, 'Set nature ' + C.NATURES[+e.target.value], () => C.setNatureShiny(r, +e.target.value, M.shiny(r), D), { full: true }) }, natureOptions(M.nature(r)))),
       field('Gender', h('select', { id: 'ed-gender', disabled: fixedGender, onchange: e => edit(r, 'Set gender', () => C.setGender(D, r, +e.target.value), { full: true }) },
         fixedGender ? h('option', {}, genderText(g)) : [0, 1].map(v => h('option', { value: v, selected: v === g }, genderText(v))))),
@@ -534,6 +535,27 @@
   const moveNote = sp => (hax ? 'RadicalHaX mode: every move is listed.'
     : X.species[sp] ? `Only moves ${spName(sp)} can learn in Radical Red are listed (level-up, TM, tutor, egg and pre-evolution moves). Turn on RadicalHaX mode for any move.`
       : `There is no Radical Red move data for ${spName(sp)}, so every move is listed.`);
+  // Exact EXP (like PKHeX): the level follows it. Under Level and EXP, an EXP bar like the game's summary screen,
+  // with what's left to the next level and a one-click "edge" (1 EXP before the next level).
+  function expField(r) {
+    const t = C.growth(D, M.species(r)), exp = M.exp(r);
+    if (!t) return field('EXP (no data for this species)', h('input', { id: 'ed-exp', type: 'number', value: exp, disabled: true }));
+    const L = C.levelOf(D, r), next = L < 100 ? t[L + 1] : null;
+    const pct = next ? Math.floor((exp - t[L]) / (next - t[L]) * 100) : 100;
+    const box = numBox('ed-exp', exp, 0, t[100], 'Experience points', (v, capped) => {
+      edit(r, `Set EXP to ${v.toLocaleString()}`, () => C.setExp(D, r, v), { full: true });
+      if (capped) status(`EXP is ${v.toLocaleString()}, the most a Pokémon can have (level 100).`);
+    });
+    return [field('EXP', box),
+      h('div', { class: 'exp-row' },
+        h('div', { class: 'exp-meter', title: next ? `Level ${L}: ${t[L].toLocaleString()}–${(next - 1).toLocaleString()} EXP` : 'Level 100' },
+          h('span', { class: 'exp-text' }, h('span', {}, next ? `${(next - exp).toLocaleString()} to Lv ${L + 1}` : 'Max level'),
+            h('span', { class: 'mono' }, next ? `${(exp - t[L]).toLocaleString()} / ${(next - t[L]).toLocaleString()}` : t[100].toLocaleString())),
+          h('span', { class: 'expbar' }, h('span', { style: `width:${pct}%` }))),
+        next ? h('button', { id: 'ed-edge', class: 'btn small', type: 'button', disabled: exp === next - 1, title: `Set EXP to ${(next - 1).toLocaleString()}, one point before level ${L + 1}`,
+          onclick: () => edit(r, `Set EXP to 1 before level ${L + 1}`, () => C.setExp(D, r, next - 1), { full: true }) }, '1 EXP to go') : null)];
+  }
+
   function movesTab(r) {
     const mv = M.moves(r), pp = M.movePp(r), sp = M.species(r);
     return [h('div', { class: 'form' }, mv.map((m, i) =>

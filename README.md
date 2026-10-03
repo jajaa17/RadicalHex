@@ -44,7 +44,8 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - Edit them like any other Pokémon, or copy them into a box. Their battle stats update automatically when you change level, nature, IVs or EVs
 
 ### Editing a Pokémon
-- Species, nickname, level, nature, gender, shininess, held item, Poké Ball, friendship, ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
+- Species, nickname, level, exact EXP, nature, gender, shininess, held item, Poké Ball, friendship, ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
+- **EXP** like PKHeX: type an exact EXP and the level follows it. The editor shows the EXP range of the current level and how much is left to the next one, and **1 EXP to go** sets it right at the edge. An EXP bar like the game's summary screen shows how far into the level it is
 - **Ability** is a dropdown like PKHeX's, listing the species' own abilities by name: ability 1, ability 2 (if it has one) and its hidden ability (H). Changing it keeps the nature, shininess and gender, like the game does when it changes an ability
 - **Origin** (like PKHeX): original trainer name, gender, trainer ID and secret ID, met location and met level, plus **Make it mine** to give it your trainer details. Changing the IDs keeps it shiny or not shiny. The met location list puts the places where that Pokémon's evolution family is found in Radical Red first. With legality checks on, the met level can't go above its level and the OT needs a name. RadicalHaX mode allows any location number and met level
 - **Moves** list only what the species can learn in Radical Red (level-up, TM, tutor, egg and pre-evolution moves), and not moves it already knows. In RadicalHaX mode every move is listed

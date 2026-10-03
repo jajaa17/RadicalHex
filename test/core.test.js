@@ -370,6 +370,28 @@ for (const file of process.argv.slice(2)) {
     assert.strictEqual(C.partyCount(back), 1);
   });
 
+  t('exact EXP: level follows, party level byte and stats stay in sync, limits hold, saves', () => {
+    const sv = fresh(), refs = [C.partyRef(sv, 0)];
+    for (let b = 0; b < C.BOXES && refs.length < 3; b++) for (let s2 = 0; s2 < C.SLOTS && refs.length < 3; s2++) if (!M.empty(C.boxRef(sv, b, s2))) refs.push(C.boxRef(sv, b, s2));
+    for (const r of refs) {
+      const g = C.growth(D, M.species(r)); if (!g) continue;
+      const keep = [M.pid(r), M.ivWord(r), M.moves(r).join(), M.species(r)].join('|');
+      for (const L of [1, 15, 50, 99]) {
+        assert.ok(C.setExp(D, r, g[L + 1] - 1)); if (r.party) C.recalcStats(D, X, r);
+        assert.strictEqual(C.levelOf(D, r), L, `1 EXP before ${L + 1} is still level ${L}`);
+        if (r.party) { assert.strictEqual(M.level(r), L); assert.ok(!C.legality(D, X, r).some(p => /doesn't match|out of date/.test(p.text))); }
+        C.setExp(D, r, g[L + 1]); if (r.party) C.recalcStats(D, X, r);
+        assert.strictEqual(C.levelOf(D, r), L + 1);
+      }
+      C.setExp(D, r, g[100] + 1000); assert.strictEqual(M.exp(r), g[100]);
+      C.setExp(D, r, -5); assert.strictEqual(M.exp(r), 0); assert.strictEqual(C.levelOf(D, r), 1);
+      C.setExp(D, r, g[37] + 123); if (r.party) C.recalcStats(D, X, r);
+      assert.strictEqual([M.pid(r), M.ivWord(r), M.moves(r).join(), M.species(r)].join('|'), keep, 'nothing else changes');
+    }
+    const back = C.load(C.build(sv, D));
+    for (const r of [C.partyRef(back, 0)]) { const g = C.growth(D, M.species(r)); if (g) { assert.strictEqual(M.exp(r), g[37] + 123); assert.strictEqual(M.level(r), 37); } }
+  });
+
   t('every species marked addable has data and a valid nickname', () => {
     for (let i = 1; i < D.species.length; i++) {
       const s = D.species[i]; if (!s.n || !s.g) continue;

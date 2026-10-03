@@ -401,6 +401,14 @@
     if (m.party) m.buf[m.off + 0x54] = L;
     return true;
   }
+  // Exact EXP, kept between 0 and the level 100 amount. The level follows from it (a party Pokémon's stored level too).
+  function setExp(D, m, e) {
+    const t = growth(D, mon.species(m));
+    if (!t) return false;
+    mon.setExp(m, Math.max(0, Math.min(t[100], Math.floor(e) || 0)));
+    if (m.party) m.buf[m.off + 0x54] = expLevel(D, m);
+    return true;
+  }
   // Gender: 0 male, 1 female, 2 genderless. Threshold 0 = male only, 254 = female only, 255 = genderless.
   const genderRatio = (D, sp) => (D.species[sp] && D.species[sp].gr !== undefined ? D.species[sp].gr : 127);
   function genderOf(D, m) {
@@ -802,7 +810,7 @@
   const api = {
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
     load, serialize, build, checksum, allowedRanges,
-    partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
+    partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
