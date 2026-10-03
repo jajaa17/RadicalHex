@@ -819,13 +819,32 @@
     return { opts, warnings };
   }
 
+  // Things in a save that Radical Red 4.1 doesn't have: unknown species, moves or held items on any Pokémon, unknown bag
+  // items, or a party count that doesn't fit. A save like that is probably from another version of Radical Red (or another
+  // hack), and editing it could damage it. Returns a short list of what was found (empty when everything is known).
+  function unknownData(sv, D) {
+    const out = [], refs = [];
+    for (let i = 0; i < partyCount(sv); i++) refs.push([partyRef(sv, i), `Party slot ${i + 1}`]);
+    for (let b = 0; b < BOXES; b++) for (let s = 0; s < SLOTS; s++) refs.push([boxRef(sv, b, s), `Box ${b + 1} slot ${s + 1}`]);
+    for (const [m, where] of refs) {
+      if (mon.empty(m)) { if (m.party) out.push(`${where} is empty but counted in the party.`); continue; }
+      const sp = mon.species(m);
+      if (!validSpecies(D, sp)) { out.push(`${where}: unknown species #${sp}.`); continue; }
+      const bad = mon.moves(m).filter(x => x && !validMove(D, x));
+      if (bad.length) out.push(`${where}: unknown move${bad.length > 1 ? 's' : ''} #${bad.join(', #')}.`);
+      if (!validItem(D, mon.item(m))) out.push(`${where}: unknown held item #${mon.item(m)}.`);
+    }
+    for (const p of POCKETS) for (const it of readPocket(sv, p)) if (!validItem(D, it.id)) out.push(`${p.name}: unknown item #${it.id}.`);
+    return out;
+  }
+
   const api = {
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
-    calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
+    calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,

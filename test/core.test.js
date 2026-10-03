@@ -407,6 +407,16 @@ for (const file of process.argv.slice(2)) {
     if (!/demo/.test(file)) for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) { const x = C.boxRef(fresh(), b, s2); if (!M.empty(x)) assert.ok(!C.legality(D, X, x).some(p => /levelling up/.test(p.text))); }
   });
 
+  t('unknown data (a save from another Radical Red version) is found; a 4.1 save has none', () => {
+    const sv = fresh();
+    assert.deepStrictEqual(C.unknownData(sv, D), []);
+    const [b, s2] = (() => { for (let x = 0; x < C.BOXES; x++) for (let y = 0; y < C.SLOTS; y++) if (M.empty(C.boxRef(sv, x, y))) return [x, y]; })();
+    C.createInBox(sv, D, C.boxRef(sv, b, s2), { species: 1, level: 5, nature: 0, moves: [1, 0, 0, 0] });
+    M.setSpecies(C.boxRef(sv, b, s2), 1500);
+    const u = C.unknownData(sv, D);
+    assert.strictEqual(u.length, 1); assert.ok(/unknown species #1500/.test(u[0]));
+  });
+
   t('every species marked addable has data and a valid nickname', () => {
     for (let i = 1; i < D.species.length; i++) {
       const s = D.species[i]; if (!s.n || !s.g) continue;

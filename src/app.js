@@ -1002,6 +1002,20 @@
       if (sv) showError('Could not open ' + name, e); else { $('#welcomeMsg').textContent = e.message; }
       return;
     }
+    // A save with Pokémon, moves or items Radical Red 4.1 doesn't have is probably from another version (a future
+    // Radical Red 5.0, say). Ask before editing it.
+    const unknown = C.unknownData(next, D);
+    if (unknown.length) {
+      modal('This save may not be from Radical Red 4.1',
+        `RadicalHex found things Radical Red 4.1 doesn't have:\n${unknown.slice(0, 6).join('\n')}${unknown.length > 6 ? `\n…and ${unknown.length - 6} more` : ''}\n\n`
+        + 'It may be from a newer Radical Red, or another hack. RadicalHex only knows 4.1, so editing this save could damage it. Check the Releases page for a newer RadicalHex. If you open it anyway, keep your own copy of the file.',
+        [{ text: 'Don\'t open it', primary: true }, { text: 'Open anyway' }])
+        .then(choice => { if (choice === 1) showSave(next, name, unknown.length); });
+      return;
+    }
+    showSave(next, name, 0);
+  }
+  function showSave(next, name, unknownCount) {
     sv = next; fileName = name; undo = []; dirty = 0; draft = null;
     sel = { party: C.partyCount(sv) > 0, box: 0, slot: 0 }; box = 0;
     $('#welcome').hidden = true; $('#app').hidden = false; $('#app').classList.remove('dex-only');
@@ -1009,6 +1023,7 @@
     dexOnly = false;
     if (host) host.setDirty(false).catch(() => {});
     renderAll();
+    if (unknownCount) { status(`Opened ${name}, which has ${unknownCount} thing${unknownCount === 1 ? '' : 's'} Radical Red 4.1 doesn't have. Edit with care.`, 'err'); return; }
     status(`Opened ${name}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
     S.play('ok');
   }

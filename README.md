@@ -128,6 +128,29 @@ Good to know:
 - Party Pokémon store their battle stats separately. RadicalHex recalculates them for you when you edit a party Pokémon, and the Stats tab has a **Recalculate stats** button.
 - Like the main games, a Pokémon in Radical Red has ability 1, ability 2 or its hidden ability, and RadicalHex lets you pick any of the ones its species has.
 
+## FAQ
+
+**Is there a PKHeX for Radical Red?**
+PKHeX can't edit Radical Red saves properly, because Radical Red is built on the Complete Fire Red Upgrade engine and stores Pokémon, boxes and the Pokédex its own way. RadicalHex is a PKHeX-style save editor made for Radical Red's format.
+
+**How do I edit my Radical Red save?**
+Close the game, download `RadicalHex.exe` from the [Releases page](https://github.com/jajaa17/RadicalHex/releases/latest), open your `.sav` (or `.srm`), make your changes and press **Save**. Then load the game again. See [Using it](#using-it).
+
+**Which saves does it open?**
+Radical Red battery saves (`.sav`, `.srm`), as written by emulators like mGBA. Not save states. If your emulator is on a phone, copy the save to a PC, edit it there and copy it back.
+
+**Which version of Radical Red?**
+Radical Red **4.1**. It is built from 4.1's own data and tested on real 4.1 saves.
+
+**What about Radical Red 5.0?**
+When a new version of Radical Red comes out, RadicalHex will need an update for its new Pokémon, moves, items and any save changes. Until then, if you open a save that has Pokémon, moves or items Radical Red 4.1 doesn't have, RadicalHex warns you before you edit it, so a newer save isn't damaged by accident. Updates reach you through the app's own updater.
+
+**Does it work on Mac, Linux or Android?**
+The download is for Windows. On other computers you can run it from source (see [Building from source](#building-from-source)).
+
+**Is it safe?**
+It backs up your save every time and checks every save before writing it, but editing a save always carries some risk. Read the warning at the top first.
+
 ## Reporting a problem
 
 If you find any issue, please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose) and pick **Bug report**, **Save problem**, **Wrong game data** or **Feature request**. Your original save is always in the `Backups` folder next to RadicalHex.exe, so attaching it is safe.
