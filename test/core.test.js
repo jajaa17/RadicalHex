@@ -51,6 +51,8 @@ for (const file of process.argv.slice(2)) {
       made++;
     }
     const out = C.build(sv, D), back = C.load(out);
+    assert.ok(!C.dex.caught(back, 445) || C.dex.caught(fresh(), 445), 'adding alone does not touch the Pokédex');
+    C.registerOwned(back, D);
     for (let s = 0; s < 30; s++) {
       const r = C.boxRef(back, box, s); if (M.species(r) !== sp) continue;
       assert.strictEqual(C.levelOf(D, r), 50 + s); assert.strictEqual(M.nature(r), s % 25); assert.strictEqual(M.shiny(r), s % 2 === 0);
@@ -265,6 +267,64 @@ for (const file of process.argv.slice(2)) {
     if (n >= 6) return;
     sv.data[sv.sec[1] + 0x34] = n + 1; // a count that points at an empty slot
     assert.throws(() => C.build(sv, D), /party slot/);
+  });
+
+  t('Pokédex: matches what the game sets, registers only what is saved, repairs old RadicalHex entries', () => {
+    const sv = fresh(), own = new Set();
+    const see = r => { if (!M.empty(r) && !M.isEgg(r) && D.species[M.species(r)].nat) own.add(D.species[M.species(r)].nat); };
+    for (let i = 0; i < C.partyCount(sv); i++) see(C.partyRef(sv, i));
+    for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) see(C.boxRef(sv, b, s2));
+    // A save RadicalHex has never written: everything owned is already caught where RadicalHex reads it.
+    for (const n of own) assert.ok(C.dex.caught(sv, n) && C.dex.seen(sv, n), `owned No. ${n} is caught in the game's Pokédex`);
+    // Mispress: add Crobat, then put a Sylveon over it; only Sylveon is registered when saving.
+    const crobat = D.species.findIndex(x => x.n === 'Crobat'), sylveon = D.species.findIndex(x => x.n === 'Sylveon');
+    const cNat = D.species[crobat].nat, sNat = D.species[sylveon].nat, hadCrobat = C.dex.caught(sv, cNat);
+    const slot = (() => { for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) if (M.empty(C.boxRef(sv, b, s2))) return C.boxRef(sv, b, s2); })();
+    const mv = [D.moves.indexOf('Tackle') > 0 ? D.moves.indexOf('Tackle') : 1, 0, 0, 0];
+    C.createInBox(sv, D, slot, { species: crobat, level: 30, nature: 0, moves: mv }); C.release(slot);
+    C.createInBox(sv, D, slot, { species: sylveon, level: 30, nature: 0, moves: mv });
+    C.registerOwned(sv, D);
+    assert.ok(C.dex.caught(sv, sNat) && C.dex.seen(sv, sNat), 'Sylveon caught');
+    assert.strictEqual(C.dex.caught(sv, cNat), hadCrobat || own.has(cNat), 'Crobat untouched');
+    // Old RadicalHex bug: "caught" written at 0x38D. Charmander (4) set seen No. 1004; Garchomp (445) set caught No. 133.
+    const old = fresh(), s1 = old.sec[1], before = C.dex.count(old);
+    const eevee = 133, eeveeSeen = C.dex.seen(old, eevee), eeveeCaught = C.dex.caught(old, eevee);
+    old.data[s1 + 0x38D + ((445 - 1) >> 3)] |= 1 << ((445 - 1) & 7);
+    old.data[s1 + 0x38D + ((1200 - 1) >> 3)] |= 1 << ((1200 - 1) & 7); // a seen entry above 1025
+    const fixed = C.dex.repair(old);
+    assert.strictEqual(C.dex.caught(old, eevee), eeveeCaught || eeveeSeen, 'stray caught Eevee removed unless it was seen');
+    assert.ok(fixed >= 1); assert.deepStrictEqual(C.dex.count(old), before);
+    assert.strictEqual(C.dex.repair(fresh()), 0, 'a clean save needs no repair');
+    C.load(C.build(old, D));
+  });
+
+  t('origin: met location, met level, OT name, gender and IDs on party and box Pokémon', () => {
+    const sv = fresh(), refs = [C.partyRef(sv, 0)];
+    for (let b = 0; b < C.BOXES && refs.length < 4; b++) for (let s2 = 0; s2 < C.SLOTS && refs.length < 4; s2++) if (!M.empty(C.boxRef(sv, b, s2))) refs.push(C.boxRef(sv, b, s2));
+    for (const r of refs) {
+      const keep = [M.species(r), M.nature(r), M.shiny(r), C.genderOf(D, r), M.abilityIndex(r), M.exp(r), M.ivWord(r), M.moves(r).join(), M.nickname(r)].join('|');
+      const game = (r.buf[r.off + (r.party ? 0x47 : 0x35)] >> 3) & 15;
+      M.setMetLocation(r, 101); M.setMetLevel(r, 7); M.setOtGender(r, 1); assert.ok(M.setOtName(r, 'ASH'));
+      assert.strictEqual(M.metLocation(r), 101); assert.strictEqual(M.metLevel(r), 7); assert.strictEqual(M.otGender(r), 1); assert.strictEqual(M.otName(r), 'ASH');
+      assert.strictEqual((r.buf[r.off + (r.party ? 0x47 : 0x35)] >> 3) & 15, game, 'game of origin kept');
+      assert.ok(!M.setOtName(r, 'TOOLONGNAME') && M.otName(r) === 'ASH', 'too long refused');
+      for (const [tid, sid] of [[1, 2], [65535, 0], [12345, 54321], [0, 65535]]) {
+        C.setOtIds(D, r, tid, sid);
+        assert.strictEqual(M.otid(r), ((sid << 16) | tid) >>> 0);
+        assert.strictEqual([M.species(r), M.nature(r), M.shiny(r), C.genderOf(D, r), M.abilityIndex(r), M.exp(r), M.ivWord(r), M.moves(r).join(), M.nickname(r)].join('|'), keep, 'IDs change keeps shiny, nature, gender, ability');
+      }
+      C.makeMine(sv, D, r);
+      const t = C.trainer(sv);
+      assert.strictEqual(M.otName(r), t.name); assert.strictEqual(M.otid(r) & 0xFFFF, t.tid); assert.strictEqual(M.otid(r) >>> 16, t.sid); assert.strictEqual(M.otGender(r), t.gender & 1);
+      if (r.party) C.recalcStats(D, X, r);
+    }
+    const back = C.load(C.build(sv, D));
+    assert.strictEqual(M.metLocation(C.partyRef(back, 0)), 101); assert.strictEqual(M.otName(C.partyRef(back, 0)), C.trainer(back).name);
+    // A new Pokémon can be met anywhere chosen.
+    const slot = (() => { for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) if (M.empty(C.boxRef(sv, b, s2))) return C.boxRef(sv, b, s2); })();
+    C.createInBox(sv, D, slot, { species: D.species.findIndex(x => x.n === 'Pikachu'), level: 20, nature: 0, moves: [D.moves.indexOf('Thunder Shock'), 0, 0, 0], metLocation: 129 });
+    assert.strictEqual(M.metLocation(slot), 129); assert.strictEqual(M.metLevel(slot), 20);
+    M.setOtName(slot, ''); assert.ok(C.legality(D, X, slot).some(p => p.level === 'error' && /trainer name/.test(p.text)), 'empty OT is illegal');
   });
 
   t('every species marked addable has data and a valid nickname', () => {

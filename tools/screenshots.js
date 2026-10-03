@@ -93,6 +93,7 @@ function demoSave() {
   pocket('balls', [['Poke Ball', 34], ['Ultra Ball', 41], ['Quick Ball', 12], ['Dusk Ball', 7]]);
   pocket('berries', [['Sitrus Berry', 9], ['Lum Berry', 6], ['Oran Berry', 18]]);
   C.setMoney(sv, 384200);
+  C.registerOwned(sv, D); // like a played game: everything owned is caught
   const out = C.serialize(sv), check = C.load(out); // the demo must load like a real save, with nothing illegal on screen
   const refs = [...Array(C.partyCount(check)).keys()].map(i => C.partyRef(check, i));
   for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) refs.push(C.boxRef(check, b, s));

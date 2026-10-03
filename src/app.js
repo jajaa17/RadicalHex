@@ -556,13 +556,70 @@
         } }, 'Recalculate stats')) : null];
   }
 
+  // ── Met locations: FireRed's places, with the ones where the Pokémon's evolution family is found in Radical Red first ──
+  const normPlace = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  const metIds = Object.keys(X.metNames).map(Number);
+  const dupNames = new Set(metIds.map(i => X.metNames[i]).filter((n, k, a) => a.indexOf(n) !== k));
+  const placeName = i => (X.metNames[i] ? X.metNames[i] + (dupNames.has(X.metNames[i]) ? ` #${i}` : '') : `#${i} (not a real place)`);
+  const sortedMet = metIds.slice().sort((a, b) => placeName(a).localeCompare(placeName(b)));
+  // Encounter area -> met location (the same name matching the Nuzlocke tools use; "Route 4 Poke Center" -> Route 4).
+  const areaMet = X.areas.map(a => {
+    const an = normPlace(a); let best = -1, len = 0;
+    for (const i of metIds) { if (i >= 253) continue; const mn = normPlace(X.metNames[i]); if ((an === mn || an.startsWith(mn + ' ')) && mn.length > len) { best = i; len = mn.length; } }
+    return best;
+  });
+  const families = new Map();
+  for (const [id, s] of Object.entries(X.species)) { if (!families.has(s.anc)) families.set(s.anc, []); families.get(s.anc).push(+id); }
+  const foundCache = new Map();
+  function foundAt(sp) {
+    if (!foundCache.has(sp)) {
+      const set = new Set(), fam = X.species[sp] ? families.get(X.species[sp].anc) || [sp] : [sp];
+      for (const f of fam) for (const row of X.enc[f] || []) if (areaMet[row[0]] >= 0) set.add(areaMet[row[0]]);
+      foundCache.set(sp, set);
+    }
+    return foundCache.get(sp);
+  }
+  function metOptions(sp, cur) {
+    const found = foundAt(sp), opt = i => h('option', { value: i, selected: i === cur }, placeName(i));
+    return [X.metNames[cur] ? null : opt(cur),
+      found.size ? h('optgroup', { label: `Where ${spName(sp)}'s family is found` }, sortedMet.filter(i => found.has(i)).map(opt)) : null,
+      h('optgroup', { label: found.size ? 'Other places' : 'Places' }, sortedMet.filter(i => !found.has(i)).map(opt))];
+  }
+  // A number box that stops at its limits; a bigger typed number is lowered to the limit (capped = true).
+  const numBox = (id, value, min, max, label, onSet) => h('input', { id, type: 'number', min, max, value, 'aria-label': label, onchange: e => {
+    const want = Math.round(+e.target.value) || 0, v = Math.max(min, Math.min(max, want));
+    e.target.value = v; onSet(v, want !== v);
+  } });
+
   function originTab(r) {
-    const t = C.trainer(sv), otid = M.otid(r), mine = (otid & 0xFFFF) === t.tid && (otid >>> 16) === t.sid;
-    return [h('dl', { class: 'kv' },
-      h('dt', {}, 'Original trainer'), h('dd', {}, `${M.otName(r)}${mine ? ' (you)' : ''}`),
-      h('dt', {}, 'Trainer ID'), h('dd', {}, `${otid & 0xFFFF}  ·  SID ${otid >>> 16}`),
-      h('dt', {}, 'Met at level'), h('dd', {}, String(M.metLevel(r))),
-      h('dt', {}, 'Met location'), h('dd', {}, (window.RH_DEX.metNames[M.metLocation(r)] || 'Unknown') + ` (#${M.metLocation(r)})`),
+    const t = C.trainer(sv), otid = M.otid(r), tid = otid & 0xFFFF, sid = otid >>> 16, sp = M.species(r);
+    const mine = tid === t.tid && sid === t.sid && M.otName(r) === t.name && M.otGender(r) === (t.gender & 1);
+    const lv = C.levelOf(D, r) || 100, metMax = hax ? 127 : lv, name = M.nickname(r) || spName(sp);
+    const bad = (e, msg) => { e.target.classList.add('bad'); status(msg, 'err'); };
+    return [h('div', { class: 'form' },
+      field('Original trainer (OT)', h('input', { id: 'ed-ot', type: 'text', maxlength: 7, value: M.otName(r), onchange: e => {
+        const v = e.target.value.trim();
+        if (!v && !hax) return bad(e, 'The original trainer needs a name. RadicalHaX mode allows an empty one.');
+        if (!C.encodeText(v, 7)) return bad(e, 'That name is longer than 7 letters or uses a character the game cannot show.');
+        edit(r, v ? `Set the OT to ${v}` : 'Cleared the OT name', () => M.setOtName(r, v), { full: true });
+      } })),
+      field('OT gender', h('select', { id: 'ed-otg', onchange: e => edit(r, 'Set the OT gender', () => M.setOtGender(r, +e.target.value), { full: true }) },
+        [0, 1].map(g => h('option', { value: g, selected: M.otGender(r) === g }, g ? 'Girl' : 'Boy')))),
+      field('Trainer ID', numBox('ed-tid', tid, 0, 65535, 'Trainer ID', v => edit(r, `Set the trainer ID to ${v}`, () => C.setOtIds(D, r, v, M.otid(r) >>> 16), { full: true }))),
+      field('Secret ID', numBox('ed-sid', sid, 0, 65535, 'Secret ID', v => edit(r, `Set the secret ID to ${v}`, () => C.setOtIds(D, r, M.otid(r) & 0xFFFF, v), { full: true }))),
+      field('Met location', h('select', { id: 'ed-met', onchange: e => edit(r, `Set the met location to ${placeName(+e.target.value)}`, () => M.setMetLocation(r, +e.target.value), { full: true }) },
+        metOptions(sp, M.metLocation(r))), ' wide'),
+      hax ? field('Met location number (any, RadicalHaX)', numBox('ed-metn', M.metLocation(r), 0, 255, 'Met location number',
+        v => edit(r, `Set the met location to #${v}`, () => M.setMetLocation(r, v), { full: true }))) : null,
+      field(hax ? 'Met at level' : `Met at level (0–${metMax})`, numBox('ed-metlv', M.metLevel(r), 0, metMax, 'Met at level', (v, capped) => {
+        edit(r, `Set the met level to ${v}`, () => M.setMetLevel(r, v), { full: true });
+        if (capped) status(hax ? `Met level is ${v}, the most the save can store.` : `Met level is ${v}: it can't be met above its level (${lv}). RadicalHaX mode allows more.`);
+      }))),
+      h('div', { class: 'row' },
+        h('span', { class: 'note grow' }, mine ? `This Pokémon is yours (${t.name}).` : `Its original trainer isn't you (${t.name}, ID ${String(t.tid).padStart(5, '0')}).`),
+        h('button', { class: 'btn small', type: 'button', disabled: mine, title: 'Set the OT name, gender and IDs to yours', onclick: () => edit(r, `Made ${name} yours`, () => C.makeMine(sv, D, r), { full: true }) }, 'Make it mine')),
+      h('p', { class: 'note' }, 'Met level 0 means it hatched from an Egg. Changing the trainer IDs keeps it shiny or not shiny.'),
+      h('dl', { class: 'kv' },
       h('dt', {}, 'Experience'), h('dd', {}, M.exp(r).toLocaleString()),
       h('dt', {}, 'Personality'), h('dd', {}, M.pid(r).toString(16).toUpperCase().padStart(8, '0')),
       h('dt', {}, 'Ability'), h('dd', {}, `${C.abilityName(X, r) || '?'} (slot ${SLOT[M.abilityIndex(r)]})`))];
@@ -644,7 +701,7 @@
 
   // ── Add a Pokémon (empty box slot) ──
   const newDraft = () => ({ species: 0, nickname: '', level: 50, nature: 0, gender: null, shiny: false, item: 0, ball: 3, friendship: 70,
-    ability: 0, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
+    ability: 0, metLocation: 88, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
   function addForm() {
     if (!draft) draft = newDraft();
     const d = draft, ratio = d.species ? C.genderRatio(D, d.species) : 127, fixed = ratio === 0 || ratio >= 254;
@@ -655,7 +712,7 @@
     return [
       h('div', { class: 'hero' }, addPic,
         h('div', {}, h('div', { class: 'hero-name' }, h('h2', {}, 'Add a Pokémon'), d.species ? cryButton(d.species, addPic) : null), h('div', { class: 'sub' }, sel.party ? `Party slot ${C.partyCount(sv) + 1}` : `${C.boxName(sv, sel.box)}, slot ${sel.slot + 1}`),
-          h('p', { class: 'note', style: 'margin-top:6px' }, 'It will belong to you, met at Pallet Town, in the ball you choose.'))),
+          h('p', { class: 'note', style: 'margin-top:6px' }, 'It will belong to you, in the ball you choose, met at the place you choose.'))),
       h('details', { open: !!d.text }, h('summary', { style: 'cursor:pointer;font-weight:600' }, 'Paste a Showdown set'),
         h('div', { style: 'display:grid;gap:8px;margin-top:8px' }, sd,
           h('button', { class: 'btn small', type: 'button', style: 'justify-self:start', onclick: () => {
@@ -698,6 +755,8 @@
         field('Poké Ball', h('select', { id: 'add-ball', onchange: e => { d.ball = +e.target.value; } }, ballOptions(d.ball))),
         field('Friendship', h('input', { id: 'add-fr', type: 'number', min: 0, max: 255, value: d.friendship, onchange: e => { d.friendship = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0)); } })),
         h('label', { class: 'check' }, h('input', { id: 'add-shiny', type: 'checkbox', checked: d.shiny, onchange: e => { d.shiny = e.target.checked; rerender(); } }), '★ Shiny'),
+        field('Met location', h('select', { id: 'add-met', disabled: !d.species, onchange: e => { d.metLocation = +e.target.value; } },
+          d.species ? metOptions(d.species, d.metLocation) : h('option', {}, 'Choose a species first'))),
         field('Ability', h('select', { id: 'add-ability', disabled: !d.species, onchange: e => { d.ability = +e.target.value; } },
           d.species ? abilityOptions(d.species, d.ability) : h('option', {}, 'Choose a species first'))),
         ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: d.species ? moveChoices(d.species, d.moves, i) : [], none: d.species ? 'None' : null, kind: 'moves',
@@ -790,7 +849,7 @@
             for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) reg(C.boxRef(sv, b, s));
             return n > 0;
           }) }, 'Register everything you own'),
-          h('p', { class: 'note' }, 'Pokémon added with RadicalHex are registered as caught automatically.'))),
+          h('p', { class: 'note' }, 'When you save, every Pokémon in the file is registered as caught, like in the game. Something you add and then remove before saving is not.'))),
       h('div', { class: 'section-title' }, 'Bag'),
       h('div', { class: 'pockets' }, C.POCKETS.map(x => h('button', { class: 'pocket', type: 'button', 'aria-pressed': String(x.key === pocket), onclick: () => { pocket = x.key; renderTrainer(); } },
         `${x.name} ${C.readPocket(sv, x).length}/${x.cap}`))),
@@ -877,8 +936,15 @@
   }
   async function save(as) {
     if (!sv) return;
-    let bytes;
-    try { bytes = C.build(sv, D); } catch (e) { showError('Save stopped', e); return; }
+    // The Pokédex is updated only in the bytes being written (like PKHeX): every Pokémon in the file counts as caught.
+    // The editor's own copy is put back, so a cancelled or stopped save changes nothing.
+    const before = snapshot();
+    let bytes, fixed = 0, caught = [];
+    try { fixed = C.dex.repair(sv); caught = C.registerOwned(sv, D); bytes = C.build(sv, D); }
+    catch (e) { restore(before); showError('Save stopped', e); return; }
+    restore(before);
+    const dexNote = (caught.length ? ` ${caught.length} Pokémon marked as caught in the Pokédex.` : '')
+      + (fixed ? ` Fixed ${fixed} Pokédex ${fixed === 1 ? 'entry' : 'entries'} left by an older RadicalHex.` : '');
     try {
       let where;
       if (host) { where = as ? await host.saveAs(bytes) : await host.save(bytes); if (!where) return; }
@@ -887,7 +953,7 @@
       sv = C.load(bytes); undo = []; dirty = 0; sel = keep;
       if (host && as) fileName = where.split(/[\\/]/).pop();
       renderAll();
-      status(host ? `Saved ${where}. The previous version is in Backups.` : `Downloaded ${where}. Your original file was not changed.`, 'ok');
+      status((host ? `Saved ${where}. The previous version is in Backups.` : `Downloaded ${where}. Your original file was not changed.`) + dexNote, 'ok');
       S.play('save');
     } catch (e) { showError('Could not save', e); }
   }

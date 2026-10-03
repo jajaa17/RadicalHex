@@ -46,7 +46,7 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 ### Editing a Pokémon
 - Species, nickname, level, nature, gender, shininess, held item, Poké Ball, friendship, ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
 - **Ability** is a dropdown like PKHeX's, listing the species' own abilities by name: ability 1, ability 2 (if it has one) and its hidden ability (H). Changing it keeps the nature, shininess and gender, like the game does when it changes an ability
-- Origin details: original trainer, IDs, met location and level
+- **Origin** (like PKHeX): original trainer name, gender, trainer ID and secret ID, met location and met level, plus **Make it mine** to give it your trainer details. Changing the IDs keeps it shiny or not shiny. The met location list puts the places where that Pokémon's evolution family is found in Radical Red first. With legality checks on, the met level can't go above its level and the OT needs a name. RadicalHaX mode allows any location number and met level
 - **Moves** list only what the species can learn in Radical Red (level-up, TM, tutor, egg and pre-evolution moves), and not moves it already knows. In RadicalHaX mode every move is listed
 - **EVs** stop at the game's limits: 252 per stat and 510 in total. The arrows stop there, and a bigger number you type is lowered to what is left. RadicalHaX mode allows up to 255 with no total
 - Items show Radical Red's own bag icons everywhere: held items, the bag and every item list
@@ -64,6 +64,7 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 - Money and Game Corner coins
 - The whole bag: Items, Key Items, Poké Balls, TMs & HMs and Berries, with "add every TM/HM, ball or berry"
 - Pokédex counts, and one click to register every Pokémon you own
+- **Pokédex like PKHeX:** when you save, every Pokémon in the file is marked as seen and caught, as the game does for anything you own. If you add a Pokémon by mistake and remove or replace it before saving, it isn't registered
 
 ### RadicalDex
 ![The RadicalDex showing Eevee's evolutions](docs/screenshot-radicaldex.png)

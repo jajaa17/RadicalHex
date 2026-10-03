@@ -4,6 +4,7 @@ const root = path.join(__dirname, '..');
 global.window = {}; eval(fs.readFileSync(path.join(root, 'src/data.js'), 'utf8'));
 const D = window.RH_DATA, C = require('../src/core.js');
 assert.ok(D.species.length > 1300, 'species table');
+assert.ok(Math.max(...D.species.map(s => s.nat || 0)) <= C.NATIONAL_DEX, 'every national number fits the Pokédex');
 assert.ok(D.items.length > 700 && D.moves.length > 1000 && D.moves.length <= 1024 && D.pp.length === D.moves.length, 'item and move tables (move ids must fit 10 bits)');
 assert.strictEqual(D.exp.length, 6); for (const c of D.exp) assert.strictEqual(c.length, 101);
 for (const [i, s] of D.species.entries()) {

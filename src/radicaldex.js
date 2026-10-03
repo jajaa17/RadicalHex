@@ -98,7 +98,7 @@ window.RHDexView = function (ui) {
     const enc = (X.enc[id] || []).slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
     const where = own.bySpecies.get(id) || [];
     const sv = ui.save();
-    const dexState = sv && s.nat <= 1000 ? (C.dex.caught(sv, s.nat) ? 'Caught' : C.dex.seen(sv, s.nat) ? 'Seen' : 'Not seen') : null;
+    const dexState = sv && s.nat <= C.NATIONAL_DEX ? (C.dex.caught(sv, s.nat) ? 'Caught' : C.dex.seen(sv, s.nat) ? 'Seen' : 'Not seen') : null;
     const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, a)) : null));
     const pic = sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144);
     return h('div', { class: 'dex-detail' },

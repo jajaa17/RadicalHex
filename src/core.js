@@ -28,7 +28,10 @@
     { key: 'berries', name: 'Berries', off: 0xAFC, cap: 75, max: 999 },
   ];
   const BAG_END = 0xAFC + 75 * 4; // end of the bag image
-  const DEX_SEEN = 0x310, DEX_CAUGHT = 0x38D, DEX_BYTES = 125;
+  // Pokédex: two LSB-first bitmaps in section 1, bit n-1 = national number n. Radical Red 4.1 makes them 164 bytes each
+  // (seen at 0x310, caught at 0x3B4), found by comparing real saves; CFRU's own 125-byte layout puts caught at 0x38D.
+  const DEX_SEEN = 0x310, DEX_CAUGHT = 0x3B4, DEX_BYTES = 0xA4, NATIONAL_DEX = 1025;
+  const DEX_USED = ((NATIONAL_DEX - 1) >> 3) + 1; // bytes that hold real entries
   const MONEY_MAX = 999999, COINS_MAX = 9999;
   const EV_CAP = 252, EV_TOTAL = 510; // the game's limits (CFRU config.h EV_CAP, pokemon.h MAX_TOTAL_EVS)
 
@@ -127,7 +130,7 @@
   // File ranges RadicalHex is allowed to change. Anything else changing means a bug, and the save is refused.
   function allowedRanges(sv) {
     const s = sv.sec, r = [];
-    r.push([s[1] + 0x34, s[1] + 0x38 + 6 * PARTY_MON], [s[1] + 0x290, s[1] + 0x296], [s[1] + DEX_SEEN, s[1] + DEX_CAUGHT + DEX_BYTES]);
+    r.push([s[1] + 0x34, s[1] + 0x38 + 6 * PARTY_MON], [s[1] + 0x290, s[1] + 0x296], [s[1] + DEX_SEEN, s[1] + DEX_CAUGHT + DEX_USED]);
     for (const id of [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]) r.push([s[id] + 0xFF6, s[id] + 0xFF8]);
     for (let i = 0; i < EXT_SIZE; i++) { const f = extFile(s, i); if (r.length && r[r.length - 1][1] === f) r[r.length - 1][1]++; else r.push([f, f + 1]); }
     for (let id = 5; id <= 13; id++) r.push([s[id], s[id] + WIN[id]]);
@@ -271,7 +274,13 @@
     nature: m => mon.pid(m) % 25,
     shiny(m) { const x = (mon.otid(m) ^ mon.pid(m)) >>> 0; return ((x & 0xFFFF) ^ (x >>> 16)) < 16; },
     metLocation: m => m.buf[F(m, 0x45, 0x33)],
+    setMetLocation: (m, v) => { m.buf[F(m, 0x45, 0x33)] = v & 0xFF; },
+    // Met info word: bits 0-6 met level (0 = hatched), 7-10 game of origin, 15 OT gender.
     metLevel: m => u16(m.buf, F(m, 0x46, 0x34)) & 0x7F,
+    setMetLevel: (m, v) => w16(m.buf, F(m, 0x46, 0x34), (u16(m.buf, F(m, 0x46, 0x34)) & ~0x7F) | (v & 0x7F)),
+    otGender: m => u16(m.buf, F(m, 0x46, 0x34)) >>> 15,
+    setOtGender: (m, g) => w16(m.buf, F(m, 0x46, 0x34), (u16(m.buf, F(m, 0x46, 0x34)) & 0x7FFF) | ((g & 1) << 15)),
+    setOtName(m, s) { const b = encodeText(s, 7); if (!b) return false; m.buf.set(b, m.off + 0x14); return true; },
     partyStats: m => (m.party ? [0x58, 0x5A, 0x5C, 0x60, 0x62, 0x5E].map(o => u16(m.buf, m.off + o)) : null),
   };
 
@@ -355,6 +364,7 @@
     if (mon.hiddenAbility(m) && !x.ab[2]) add('warn', `${name} has no hidden ability in Radical Red, so the game uses its normal ability.`, 'ability');
     const L = expLevel(D, m);
     if (L && mon.metLevel(m) > L) add('warn', `It was met at level ${mon.metLevel(m)} but its EXP only reaches level ${L}.`, 'level');
+    if (!mon.otName(m)) add('error', 'It has no original trainer name.', 'origin');
     if (X.metNames && !X.metNames[mon.metLocation(m)]) add('warn', `Its met location (#${mon.metLocation(m)}) is not a real place.`, 'origin');
     const it = mon.item(m);
     if (it && pocketOf(D, it) === 'key') add('warn', `${D.items[it] || 'That item'} is a key item, which Pokémon can't normally hold.`, 'item');
@@ -457,6 +467,20 @@
     const ratio = genderRatio(D, mon.species(m));
     mon.setPid(m, solvePid({ otid: mon.otid(m), nature: mon.nature(m), shiny: mon.shiny(m), gender: genderOf(D, m), ratio, abilityBit: index, keep: keepForm(D, m) }));
   }
+  // New original trainer IDs. The game reads shininess from the IDs and the personality, so the personality is
+  // re-rolled when needed to keep the Pokémon shiny or not shiny (nature, gender, ability and form stay too).
+  function setOtIds(D, m, tid, sid) {
+    const shiny = mon.shiny(m);
+    w32(m.buf, m.off + 4, (((sid & 0xFFFF) << 16) | (tid & 0xFFFF)) >>> 0);
+    if (mon.shiny(m) !== shiny) setNatureShiny(m, mon.nature(m), shiny, D);
+  }
+  // Makes the Pokémon the save's own: OT name, gender and IDs of the trainer (shininess kept).
+  function makeMine(sv, D, m) {
+    const t = trainer(sv);
+    m.buf.set(t.nameBytes, m.off + 0x14);
+    mon.setOtGender(m, t.gender & 1);
+    setOtIds(D, m, t.tid, t.sid);
+  }
   function setGender(D, m, gender) {
     const ratio = genderRatio(D, mon.species(m));
     if (ratio === 0 || ratio >= 254) return false;
@@ -513,7 +537,7 @@
 
   // ── Pokédex ──
   function dexBit(sv, base, nat, on) {
-    if (nat < 1 || nat > DEX_BYTES * 8) return false;
+    if (nat < 1 || nat > (on === false ? DEX_BYTES * 8 : NATIONAL_DEX)) return false;
     const o = sv.sec[1] + base + ((nat - 1) >> 3), bit = 1 << ((nat - 1) & 7);
     if (on === undefined) return (sv.data[o] & bit) !== 0;
     sv.data[o] = on ? sv.data[o] | bit : sv.data[o] & ~bit;
@@ -524,14 +548,38 @@
     caught: (sv, nat) => dexBit(sv, DEX_CAUGHT, nat),
     register(sv, nat) { dexBit(sv, DEX_SEEN, nat, true); dexBit(sv, DEX_CAUGHT, nat, true); },
     count(sv) {
-      const c = base => { let n = 0; for (let i = 0; i < DEX_BYTES; i++) { let x = sv.data[sv.sec[1] + base + i]; while (x) { n += x & 1; x >>= 1; } } return n; };
+      const c = base => { let n = 0; for (let nat = 1; nat <= NATIONAL_DEX; nat++) if (dexBit(sv, base, nat)) n++; return n; };
       return { seen: c(DEX_SEEN), caught: c(DEX_CAUGHT) };
     },
+    // Removes entries the game can't make, left by RadicalHex 1.0.0-1.0.7 (which wrote "caught" at CFRU's 0x38D):
+    // seen entries above No. 1025, and caught entries that were never seen. Returns how many it removed.
+    repair(sv) {
+      let n = 0;
+      for (let nat = NATIONAL_DEX + 1; nat <= (DEX_CAUGHT - DEX_SEEN) * 8; nat++) if (dexBit(sv, DEX_SEEN, nat)) { dexBit(sv, DEX_SEEN, nat, false); n++; }
+      for (let nat = 1; nat <= NATIONAL_DEX; nat++) if (dexBit(sv, DEX_CAUGHT, nat) && !dexBit(sv, DEX_SEEN, nat)) { dexBit(sv, DEX_CAUGHT, nat, false); n++; }
+      return n;
+    },
   };
+  // Like PKHeX: when saving, every Pokémon in the file (party and all boxes, eggs excluded) is registered as seen and
+  // caught, as the game itself does for anything you own (catching, gifts, trades, evolving, hatching). Something
+  // added and then removed or replaced before saving is never registered. Returns the national numbers that became caught.
+  function registerOwned(sv, D) {
+    const out = new Set();
+    const check = m => {
+      if (mon.empty(m) || mon.isEgg(m)) return;
+      const nat = D.species[mon.species(m)] && D.species[mon.species(m)].nat;
+      if (!nat || nat > NATIONAL_DEX) return;
+      if (!dex.caught(sv, nat)) out.add(nat);
+      dex.register(sv, nat);
+    };
+    for (let i = 0; i < partyCount(sv); i++) check(partyRef(sv, i));
+    for (let b = 0; b < BOXES; b++) for (let s = 0; s < SLOTS; s++) check(boxRef(sv, b, s));
+    return [...out];
+  }
 
   // ── Creating, copying and moving PC Pokémon ──
   // opts: species, level, nature, shiny, gender, nickname, item, ball, friendship, moves[4], ivs[6], evs[6],
-  // ability (0 = ability 1, 1 = ability 2, 2 = hidden; hidden: true also means 2)
+  // ability (0 = ability 1, 1 = ability 2, 2 = hidden; hidden: true also means 2), metLocation (default Pallet Town)
   function createInBox(sv, D, ref, opts) {
     if (ref.party) throw new Error('New Pokémon go into a box. Withdraw them in the game to add them to the party.');
     if (!mon.empty(ref)) throw new Error('That box slot is not empty.');
@@ -559,12 +607,11 @@
     mon.setBall(m, opts.ball ?? 3);
     mon.setMoves(m, opts.moves.map(x => x | 0), D);
     mon.setEvs(m, opts.evs || [0, 0, 0, 0, 0, 0]);
-    b[0x33] = PALLET_TOWN;
+    b[0x33] = opts.metLocation ?? PALLET_TOWN;
     w16(b, 0x34, L | (GAME_FIRERED << 7) | ((t.gender & 1) << 15));
     mon.setIvs(m, opts.ivs || [31, 31, 31, 31, 31, 31]);
     if (ability === 2) mon.setHiddenAbility(m, true);
     ref.buf.set(b, ref.off);
-    if (D.species[opts.species].nat) dex.register(sv, D.species[opts.species].nat);
   }
   const release = ref => { if (!ref.party) ref.buf.fill(0, ref.off, ref.off + BOX_MON); };
 
@@ -718,8 +765,8 @@
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, growth, genderOf, genderRatio, defaultNickname,
-    solvePid, setNatureShiny, setGender, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
+    dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp), // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,
