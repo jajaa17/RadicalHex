@@ -3,6 +3,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, screen } = requ
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const updater = require('./updater');
 
 const SAVE_FILTERS = [{ name: 'GBA battery save', extensions: ['sav', 'srm', 'sa1', 'dsv', 'fla'] }, { name: 'All files', extensions: ['*'] }];
 // Backups go in a "Backups" folder next to RadicalHex.exe. The portable .exe runs from a temporary copy, so electron-builder
@@ -156,8 +157,26 @@ handle('show-backups', async () => { fs.mkdirSync(backupDir(), { recursive: true
 handle('backup-dir', async () => backupDir());
 handle('set-dirty', async d => { win.__dirty = !!d; });
 handle('version', async () => app.getVersion());
+// Updates (see updater.js). The check is on by default and can be turned off; the choice is kept in settings.json.
+let updateNotice = null; // a message from the update step that just ran, shown once the window is up
+handle('update-auto', async v => { if (typeof v === 'boolean') writeSettings({ autoUpdateCheck: v }); return readSettings().autoUpdateCheck !== false; });
+handle('update-check', async () => updater.check());
+handle('update-notice', async () => { const n = updateNotice; updateNotice = null; return n; });
+handle('update-install', async () => {
+  const dest = await updater.download(pct => { if (win && !win.isDestroyed()) win.webContents.send('update-progress', pct); });
+  await updater.launch(dest);
+  win.__dirty = false; // the window already asked about unsaved changes
+  setTimeout(() => app.quit(), 100);
+  return true;
+});
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const fin = process.argv.indexOf('--finish-update');
+  if (fin > 0 && !SMOKE) {
+    const r = await updater.finish(process.argv[fin + 1]);
+    if (r.done) { app.quit(); return; } // the updated RadicalHex.exe is starting
+    if (r.message) updateNotice = r.message;
+  } else updater.cleanup();
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

@@ -1039,6 +1039,64 @@
     else if (k === 'o') { e.preventDefault(); open(); }
     else if (k === 'z' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { e.preventDefault(); doUndo(); }
   });
+  // ── Version and updates (desktop app only; see updater.js) ──
+  let update = null; // the last check: { current, latest, newer, canInstall, reason, page }
+  async function checkForUpdate(manual) {
+    try { update = await host.checkUpdate(); } catch (e) { if (manual) throw e; return; } // a failed start-up check stays quiet
+    const b = $('#btnVersion');
+    b.classList.toggle('new', update.newer);
+    b.textContent = update.newer ? `v${update.current} → v${update.latest}` : `v${update.current}`;
+    b.title = update.newer ? `RadicalHex v${update.latest} is out. Click to update.` : 'You have the latest RadicalHex. Click for update options.';
+    if (update.newer && !manual) status(`RadicalHex v${update.latest} is out. Click the version at the top left to update.`);
+  }
+  async function updateDialog() {
+    let autoOn = await host.autoUpdateCheck().catch(() => true), working = false;
+    const d = h('dialog', { class: 'card update-dlg' }), close = () => { d.close(); d.remove(); };
+    d.addEventListener('cancel', e => { if (working) e.preventDefault(); else d.remove(); });
+    const recheck = async () => { draw('Checking GitHub…'); try { await checkForUpdate(true); draw(); } catch (e) { draw(e.message, 'err'); } };
+    function draw(msg, kind) {
+      const u = update;
+      put(d,
+        h('h3', {}, 'RadicalHex updates'),
+        h('p', { style: 'margin:0' }, !u ? `You have v${$('#btnVersion').textContent.replace(/^v/, '').split(' ')[0]}.` : u.newer ? `RadicalHex v${u.latest} is out. You have v${u.current}.` : `You have the latest version (v${u.current}).`),
+        u && u.newer ? h('p', { class: 'note', style: 'margin:0' }, u.canInstall
+          ? "Update now downloads it from GitHub, checks it against GitHub's checksum, then closes RadicalHex and starts the new version in its place. Your saves and backups aren't touched, and if anything goes wrong your current RadicalHex.exe stays as it is."
+          : u.reason) : null,
+        msg ? h('p', { class: kind === 'err' ? 'warn' : 'note', style: 'margin:0;white-space:pre-line' }, msg) : null,
+        working ? h('span', { class: 'update-bar' }, h('span', { id: 'upd-bar' })) : null,
+        h('label', { class: 'check' }, h('input', { id: 'upd-auto', type: 'checkbox', checked: autoOn, disabled: working, onchange: e => { autoOn = e.target.checked; host.autoUpdateCheck(autoOn).catch(() => {}); } }),
+          'Check for updates when RadicalHex starts'),
+        h('div', { class: 'row', style: 'justify-content:flex-end' },
+          u && u.newer ? h('button', { class: 'btn', type: 'button', disabled: working, onclick: () => window.open(u.page) }, "What's new") : null,
+          h('button', { class: 'btn', type: 'button', disabled: working, onclick: recheck }, 'Check now'),
+          u && u.newer && u.canInstall ? h('button', { id: 'upd-install', class: 'btn primary', type: 'button', disabled: working, onclick: install }, 'Update now') : null,
+          h('button', { class: 'btn', type: 'button', disabled: working, onclick: close }, 'Close')));
+    }
+    async function install() {
+      if (!(await confirmDiscard())) return;
+      working = true;
+      draw(`Downloading v${update.latest}…`);
+      host.onUpdateProgress(pct => { const bar = d.querySelector('#upd-bar'); if (bar) bar.style.width = pct + '%'; });
+      try { await host.installUpdate(); draw('Download checked. Starting the new version…'); }
+      catch (e) { working = false; draw(e.message, 'err'); S.play('error'); }
+    }
+    document.body.append(d);
+    draw();
+    d.showModal();
+    if (!update) recheck();
+  }
+  async function initVersion() {
+    if (!host || !host.version) return;
+    const b = $('#btnVersion'), v = await host.version().catch(() => '');
+    if (!v) return;
+    b.textContent = 'v' + v; b.title = 'RadicalHex version. Click for update options.'; b.hidden = false;
+    b.onclick = updateDialog;
+    const notice = await host.updateNotice().catch(() => null);
+    if (notice) modal('Update', notice, [{ text: 'OK', primary: true }]);
+    if (await host.autoUpdateCheck().catch(() => false)) checkForUpdate(false);
+  }
+  initVersion();
+
   if (!host) $('#btnSave').textContent = 'Download';
   renderHeader();
   window.RadicalHex = { openBytes }; // used by tests

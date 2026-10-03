@@ -18,6 +18,9 @@ for (let i = 0; i < spriteCount; i++) for (const dir of ['', 'shiny/']) assert.o
 const html = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8');
 assert.ok(/Content-Security-Policy[^>]+script-src 'self'/.test(html), 'CSP');
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
+// Every file main.js loads must be packed into the .exe.
+const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+for (const m of main.match(/require\('\.\/[^']+'\)/g) || []) assert.ok(pkg.build.files.includes(m.slice(11, -2) + '.js'), `${m} is in build.files`);
 assert.ok(main.includes('contextIsolation: true') && main.includes('nodeIntegration: false') && main.includes('sandbox: true'), 'window isolation');
 // Undo and failed edits must restore every part of the save the editor writes, boxes 23-25 (sv.ext) included.
 const appJs = fs.readFileSync(path.join(root, 'src/app.js'), 'utf8');

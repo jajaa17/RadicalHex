@@ -34,6 +34,13 @@ h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
 .logo.big { width: 64px; height: 64px; }
 .wordmark { font-family: var(--display); font-size: 18px; letter-spacing: -.01em; }
 .wordmark b { color: var(--accent); }
+.ver { font-family: var(--mono); font-size: 11px; color: var(--muted); background: none; border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; line-height: 1.6; }
+.ver:hover { color: var(--fg); border-color: var(--muted); }
+.ver.new { color: var(--accent-fg); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.update-dlg { width: min(480px, 92vw); border: 1px solid var(--line); color: var(--fg); background: var(--panel); }
+.update-dlg > * + * { margin-top: 10px; }
+.update-bar { display: block; height: 8px; background: var(--sunk); border-radius: 4px; overflow: hidden; }
+.update-bar > span { display: block; height: 100%; width: 0; background: var(--good); transition: width .2s; }
 .file { display: flex; gap: 14px; align-items: baseline; font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .file b { color: var(--fg); font-weight: 500; }
 .file .ok { color: var(--good); }

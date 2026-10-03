@@ -103,6 +103,14 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - The speaker button in the top bar turns the sounds off or on. Cries still play when you ask for one
 - Light: the sounds are made by the app as they play (no sound files), and each cry is a small file that only loads when you press Cry
 
+### Updates
+- The version you have is shown next to the RadicalHex name at the top left.
+- When RadicalHex starts, it checks GitHub for a newer version. If there is one, the version turns red. Click it, then **Update now**.
+- RadicalHex downloads the new `RadicalHex.exe` next to yours and keeps it only if it matches the checksum GitHub publishes for that file. Then it closes, and the new version replaces the old `RadicalHex.exe` and starts. Your saves and the `Backups` folder aren't touched.
+- If anything goes wrong (no internet, a bad download, the folder can't be written to, the old .exe is still in use), your current `RadicalHex.exe` stays exactly as it was, and RadicalHex tells you what happened.
+- Don't want it to go online? Click the version and untick **Check for updates when RadicalHex starts**. You can still check by hand with **Check now**, or download new versions from the [Releases page](https://github.com/jajaa17/RadicalHex/releases).
+- Updating in place starts with v1.0.9. If you have an older version, download v1.0.9 or newer once by hand.
+
 ### Fits your screen, light on memory
 - Works on anything from old 1024×768 monitors and scaled laptop screens to large displays. The layout adapts when the window is small or not maximized.
 - Only the tab you are looking at is kept in memory, and long lists only draw the rows on screen, so RadicalHex stays light even on older PCs.
@@ -135,7 +143,7 @@ If you find any issue, please report it on the [Issues page](https://github.com/
 
 **Why is the .exe about 100 MB?** Almost all of it is Electron, because every Electron app brings its own copy of Chromium. RadicalHex's own code, data, sprites, item icons and cries are about 20 MB of that. The download is already trimmed (English-only browser files, maximum compression).
 
-**Does it go online?** No. RadicalHex never connects to the internet. Links like the PKHeX credit just open in your normal browser.
+**Does it go online?** Only to check for updates: when it starts, it asks GitHub for the latest RadicalHex release. Nothing about you or your saves is sent, and you can turn the check off (see [Updates](#updates)). Everything else stays on your PC.
 
 ## Building from source
 
