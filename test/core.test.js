@@ -392,6 +392,21 @@ for (const file of process.argv.slice(2)) {
     for (const r of [C.partyRef(back, 0)]) { const g = C.growth(D, M.species(r)); if (g) { assert.strictEqual(M.exp(r), g[37] + 123); assert.strictEqual(M.level(r), 37); } }
   });
 
+  t('legality: level-up moves above its level are a warning (its own or a pre-evolution\'s), TM/tutor/egg moves are not', () => {
+    const sv = fresh(), r = C.boxRef(sv, 24, 28); C.release(r);
+    const sp = n => D.species.findIndex(x => x && x.n === n), mv = n => D.moves.indexOf(n);
+    C.createInBox(sv, D, r, { species: sp('Froakie'), level: 15, nature: 0, moves: [mv('Bounce'), mv('Quick Attack'), mv('Hydro Pump'), 0] });
+    let w = C.legality(D, X, r).filter(p => /levelling up/.test(p.text));
+    assert.strictEqual(w.length, 1); assert.strictEqual(w[0].level, 'warn'); assert.strictEqual(w[0].field, 'move0'); assert.ok(/level 39/.test(w[0].text) && /level 15/.test(w[0].text));
+    assert.ok(!C.isIllegal(D, X, r), 'a warning, not illegal');
+    C.setLevel(D, r, 39); assert.ok(!C.legality(D, X, r).some(p => /levelling up/.test(p.text)), 'fine at level 39');
+    M.setSpecies(r, sp('Greninja')); C.setLevel(D, r, 36); M.setMoves(r, [mv('Bounce'), mv('Water Shuriken'), 0, 0], D);
+    w = C.legality(D, X, r).filter(p => /levelling up/.test(p.text));
+    assert.strictEqual(w.length, 1); assert.ok(/pre-evolution Froakie/.test(w[0].text), 'pre-evolution move named: ' + w[0].text);
+    // a real save: nothing the game gave it is flagged
+    if (!/demo/.test(file)) for (let b = 0; b < C.BOXES; b++) for (let s2 = 0; s2 < C.SLOTS; s2++) { const x = C.boxRef(fresh(), b, s2); if (!M.empty(x)) assert.ok(!C.legality(D, X, x).some(p => /levelling up/.test(p.text))); }
+  });
+
   t('every species marked addable has data and a valid nickname', () => {
     for (let i = 1; i < D.species.length; i++) {
       const s = D.species[i]; if (!s.n || !s.g) continue;

@@ -42,6 +42,33 @@ function learnable(id, seen = new Set()) {
   return set;
 }
 
+// Moves a species can only get by levelling up (not from a TM, tutor or as an egg move, its own or a pre-evolution's),
+// with the lowest level it or a pre-evolution learns each one at: [move, level, species that learns it there].
+function ancestors(id, seen = new Set()) {
+  for (const p of prevos[id] || []) if (!seen.has(p)) { seen.add(p); ancestors(p, seen); }
+  return seen;
+}
+function nonLevel(id) {
+  const set = new Set();
+  for (const a of [+id, ...ancestors(+id)]) {
+    const s = species[a];
+    if (!s) continue;
+    for (const i of s.tmMoves || []) set.add(d.tmMoves[i]);
+    for (const i of s.tutorMoves || []) set.add(d.tutorMoves[i]);
+    for (const m of s.eggMoves || []) set.add(m);
+  }
+  return set;
+}
+function levelOnly(id) {
+  const nl = nonLevel(id), best = new Map();
+  for (const a of [+id, ...ancestors(+id)]) for (const [m, lv] of (species[a] && species[a].levelupMoves) || []) {
+    if (!moves[m] || nl.has(m)) continue;
+    const cur = best.get(m);
+    if (!cur || lv < cur[1]) best.set(m, [m, lv, a]);
+  }
+  return [...best.values()].sort((x, y) => x[0] - y[0]);
+}
+
 const outSpecies = {};
 for (const [id, s] of Object.entries(species)) {
   outSpecies[id] = {
@@ -55,6 +82,7 @@ for (const [id, s] of Object.entries(species)) {
     evo: (s.evolutions || []).filter(e => species[e[2]]).map(e => [e[2], evoText(e), e[0] === 254 ? 1 : 0]),
     lv: (s.levelupMoves || []).map(m => [m[0], m[1]]),
     ln: [...learnable(+id)].filter(m => moves[m]).sort((a, b) => a - b),
+    lo: levelOnly(+id),
   };
 }
 

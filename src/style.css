@@ -345,6 +345,7 @@ table.enc tr:last-child td { border-bottom: 0; }
 .legal.warn strong, .legal li.warn { color: var(--warn); }
 .legal li.info { color: var(--muted); }
 .pick.bad { border-color: var(--bad); box-shadow: 0 0 0 1px var(--bad) inset; }
+.pick.warnb { border-color: var(--warn); box-shadow: 0 0 0 1px var(--warn) inset; }
 .illegal-mark { color: var(--bad); font-weight: 800; }
 .legal-count { font-size: 12.5px; font-weight: 600; }
 .legal-count.ok { color: var(--good); }

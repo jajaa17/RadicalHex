@@ -340,6 +340,9 @@
   // Returns [{ level: 'error' | 'warn' | 'info', text, field }]. Errors are things the game cannot produce.
   const learnCache = new Map();
   const learnSet = (X, sp) => { if (!learnCache.has(sp)) learnCache.set(sp, new Set(X.species[sp] ? X.species[sp].ln : [])); return learnCache.get(sp); };
+  // Moves only learned by levelling up: move -> [move, lowest level, species that learns it there (itself or a pre-evolution)].
+  const levelCache = new Map();
+  const levelOnly = (X, sp) => { if (!levelCache.has(sp)) levelCache.set(sp, new Map((X.species[sp] && X.species[sp].lo || []).map(e => [e[0], e]))); return levelCache.get(sp); };
   function expLevel(D, m) {
     const t = growth(D, mon.species(m));
     if (!t) return null;
@@ -356,6 +359,15 @@
     const mv = mon.moves(m), set = learnSet(X, sp);
     if (!mv.some(Boolean)) add('error', 'It has no moves.', 'moves');
     mv.forEach((id, i) => { if (id && !set.has(id)) add('error', `${name} can't learn ${D.moves[id] || '#' + id} in Radical Red (not a level-up, TM, tutor, egg or pre-evolution move).`, 'move' + i); });
+    // A move it can only get by levelling up, at a level it hasn't reached (like PKHeX). A warning, not an error:
+    // CFRU's Move Relearner can be set to teach level-up moves early, so it might still be possible in Radical Red.
+    const lvNow = expLevel(D, m), lo = levelOnly(X, sp);
+    if (lvNow) mv.forEach((id, i) => {
+      const e = id && set.has(id) && lo.get(id);
+      if (!e || e[1] <= lvNow) return;
+      add('warn', e[2] === sp ? `${name} learns ${D.moves[id]} by levelling up at level ${e[1]}, but it is level ${lvNow}.`
+        : `${D.moves[id]} is learned by levelling up at level ${e[1]} (by its pre-evolution ${(D.species[e[2]] && D.species[e[2]].n) || '#' + e[2]}), but it is level ${lvNow}.`, 'move' + i);
+    });
     const dup = mv.find((id, i) => id && mv.indexOf(id) !== i);
     if (dup) add('error', `${D.moves[dup] || '#' + dup} is in two move slots.`, 'moves');
     const ev = mon.evs(m), total = ev.reduce((a, b) => a + b, 0), over = STATS.filter((_, i) => ev[i] > EV_CAP);
@@ -814,7 +826,8 @@
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, EV_CAP, EV_TOTAL, clampEvs,
-    learnable: (X, sp) => learnSet(X, sp), // Set of move ids the species can know in Radical Red (what legality checks)
+    learnable: (X, sp) => learnSet(X, sp),
+    levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

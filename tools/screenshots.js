@@ -57,12 +57,12 @@ function demoSave() {
     ['Tyranitar', 56, 'Careful', 'Leftovers', ['Stone Edge', 'Crunch', 'Earthquake', 'Stealth Rock'], 0, 'Mt. Moon'],
     ['Metagross', 56, 'Jolly', 'Life Orb', ['Meteor Mash', 'Zen Headbutt', 'Bullet Punch', 'Earthquake'], 0, 'Power Plant'],
     ['Lucario', 52, 'Timid', 'Life Orb', ['Aura Sphere', 'Flash Cannon', 'Vacuum Wave', 'Nasty Plot'], 1, 'Rock Tunnel'],
-    ['Gardevoir', 52, 'Modest', 'Choice Specs', ['Moonblast', 'Psychic', 'Mystical Fire', 'Calm Mind'], 0, 'Route 2'],
+    ['Gardevoir', 62, 'Modest', 'Choice Specs', ['Moonblast', 'Psychic', 'Mystical Fire', 'Calm Mind'], 0, 'Route 2'],
     ['Togekiss', 54, 'Calm', 'Leftovers', ['Air Slash', 'Dazzling Gleam', 'Roost', 'Nasty Plot'], 1, 'Route 5'],
     ['Rotom-Wash', 50, 'Bold', 'Leftovers', ['Hydro Pump', 'Volt Switch', 'Will-O-Wisp', 'Pain Split'], 0, 'Power Plant'],
     ['Ferrothorn', 51, 'Relaxed', 'Rocky Helmet', ['Gyro Ball', 'Leech Seed', 'Knock Off', 'Spikes'], 0, 'Rock Tunnel'],
     ['Corviknight', 52, 'Impish', 'Leftovers', ['Brave Bird', 'Body Press', 'Roost', 'Defog'], 0, 'Route 8'],
-    ['Toxapex', 50, 'Bold', 'Black Sludge', ['Scald', 'Recover', 'Toxic', 'Haze'], 1, 'Seafoam Islands'],
+    ['Toxapex', 68, 'Bold', 'Black Sludge', ['Scald', 'Recover', 'Toxic', 'Haze'], 1, 'Seafoam Islands'],
     ['Volcarona', 55, 'Timid', 'Heavy-Duty Boots', ['Quiver Dance', 'Fiery Dance', 'Bug Buzz', 'Giga Drain'], 0, 'Route 15'],
     ['Hydreigon', 56, 'Modest', 'Choice Specs', ['Draco Meteor', 'Dark Pulse', 'Flamethrower', 'U-turn'], 0, 'Cerulean Cave'],
     ['Excadrill', 53, 'Jolly', 'Focus Sash', ['Earthquake', 'Iron Head', 'Rock Slide', 'Rapid Spin'], 2, 'Diglett\'s Cave'],
@@ -76,7 +76,7 @@ function demoSave() {
     ['Kingambit', 58, 'Adamant', 'Leftovers', ['Kowtow Cleave', 'Iron Head', 'Sucker Punch', 'Swords Dance'], 0, 'Route 23'],
     ['Dragapult', 57, 'Jolly', 'Choice Band', ['Dragon Darts', 'Phantom Force', 'U-turn', 'Sucker Punch'], 1, 'Route 23'],
     ['Meowscarada', 55, 'Jolly', 'Choice Scarf', ['Flower Trick', 'Knock Off', 'U-turn', 'Triple Axel'], 0, 'Route 1'],
-    ['Skeledirge', 55, 'Bold', 'Leftovers', ['Torch Song', 'Shadow Ball', 'Slack Off', 'Will-O-Wisp'], 0, 'Route 1'],
+    ['Skeledirge', 64, 'Bold', 'Leftovers', ['Torch Song', 'Shadow Ball', 'Slack Off', 'Will-O-Wisp'], 0, 'Route 1'],
     ['Eevee', 30, 'Hardy', 'Eviolite', ['Quick Attack', 'Bite', 'Swift', 'Baby-Doll Eyes'], 1, 'Celadon City'],
   ];
   const shiny = new Set([2, 5, 16, 27]);

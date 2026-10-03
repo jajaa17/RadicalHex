@@ -82,9 +82,10 @@
 
   // value: current id (0 = none). none: label for the empty choice, or null when an empty choice is not allowed.
   // icon: optional (id, size) => element, shown next to each choice (species sprites, item icons).
+  // bad: 'error' (red) or 'warn' (amber) outline; true means 'error'.
   function picker({ id, value, options, none = null, placeholder = 'Choose…', icon = null, kind, onPick, bad = false, disabled = false }) {
     if (!icon && kind === 'items') icon = itemIcon;
-    const btn = h('button', { id, type: 'button', class: 'pick' + (bad ? ' bad' : ''), 'aria-haspopup': 'listbox', disabled },
+    const btn = h('button', { id, type: 'button', class: 'pick' + (bad === 'warn' ? ' warnb' : bad ? ' bad' : ''), 'aria-haspopup': 'listbox', disabled },
       icon && value ? icon(value, 24) : null,
       h('span', { class: 'pick-label' + (value ? '' : ' muted') }, value ? nameIn(kind, value) : none || placeholder),
       value ? h('span', { class: 'pick-id' }, '#' + value) : null,
@@ -527,13 +528,15 @@
 
   // Move choices. Normal mode lists only moves the species can learn in Radical Red (the same list the legality
   // check uses) that are not already in another slot; RadicalHaX mode lists every move. The current move stays listed.
-  function moveChoices(sp, mv, i) {
+  // lv: its level; moves it only learns by levelling up later are marked with that level.
+  function moveChoices(sp, mv, i, lv) {
     if (hax || !X.species[sp]) return moveOpts();
-    const set = C.learnable(X, sp);
-    return moveOpts().filter(o => o.id === mv[i] || (set.has(o.id) && !mv.includes(o.id)));
+    const set = C.learnable(X, sp), lo = C.levelOnly(X, sp);
+    return moveOpts().filter(o => o.id === mv[i] || (set.has(o.id) && !mv.includes(o.id)))
+      .map(o => { const e = lo.get(o.id); return e && lv && e[1] > lv ? { id: o.id, label: `${o.label} · Lv ${e[1]}` } : o; });
   }
   const moveNote = sp => (hax ? 'RadicalHaX mode: every move is listed.'
-    : X.species[sp] ? `Only moves ${spName(sp)} can learn in Radical Red are listed (level-up, TM, tutor, egg and pre-evolution moves). Turn on RadicalHaX mode for any move.`
+    : X.species[sp] ? `Only moves ${spName(sp)} can learn in Radical Red are listed (level-up, TM, tutor, egg and pre-evolution moves). A move marked "Lv" is learned by levelling up at that level, so picking it earlier shows a warning. Turn on RadicalHaX mode for any move.`
       : `There is no Radical Red move data for ${spName(sp)}, so every move is listed.`);
   // Exact EXP (like PKHeX): the level follows it. Under Level and EXP, an EXP bar like the game's summary screen,
   // with what's left to the next level and a one-click "edge" (1 EXP before the next level).
@@ -561,7 +564,8 @@
   function movesTab(r) {
     const mv = M.moves(r), pp = M.movePp(r), sp = M.species(r);
     return [h('div', { class: 'form' }, mv.map((m, i) =>
-      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveChoices(sp, mv, i), none: 'None', kind: 'moves', bad: legal(r).some(p => p.field === 'move' + i), onPick: id => {
+      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveChoices(sp, mv, i, C.levelOf(D, r)), none: 'None', kind: 'moves',
+        bad: legal(r).some(p => p.field === 'move' + i && p.level === 'error') ? 'error' : legal(r).some(p => p.field === 'move' + i) ? 'warn' : false, onPick: id => {
         const next = mv.slice(); next[i] = id;
         if (!next.some(x => x)) { status('A Pokémon needs at least one move.', 'err'); return; }
         edit(r, id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
@@ -821,7 +825,7 @@
           d.species ? metOptions(d.species, d.metLocation) : h('option', {}, 'Choose a species first'))),
         field('Ability', h('select', { id: 'add-ability', disabled: !d.species, onchange: e => { d.ability = +e.target.value; } },
           d.species ? abilityOptions(d.species, d.ability) : h('option', {}, 'Choose a species first'))),
-        ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: d.species ? moveChoices(d.species, d.moves, i) : [], none: d.species ? 'None' : null, kind: 'moves',
+        ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: d.species ? moveChoices(d.species, d.moves, i, d.level) : [], none: d.species ? 'None' : null, kind: 'moves',
           disabled: !d.species, placeholder: 'Choose a species first', onPick: id => { d.moves[i] = id; rerender(); } }))),
         d.species ? h('p', { class: 'note', style: 'grid-column:1 / -1' }, moveNote(d.species)) : null),
       statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add'),
