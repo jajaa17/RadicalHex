@@ -24,8 +24,9 @@ for (const m of main.match(/require\('\.\/[^']+'\)/g) || []) assert.ok(pkg.build
 assert.ok(main.includes('contextIsolation: true') && main.includes('nodeIntegration: false') && main.includes('sandbox: true'), 'window isolation');
 // Undo and failed edits must restore every part of the save the editor writes, boxes 23-25 (sv.ext) included.
 const appJs = fs.readFileSync(path.join(root, 'src/app.js'), 'utf8');
-for (const part of ['data', 'stream', 'raw', 'ext']) assert.ok(appJs.includes(`${part}: sv.${part}.slice()`) && appJs.includes(`sv.${part}.set(s.${part})`), `undo snapshot covers ${part}`);
-for (const f of ['src/app.js', 'src/core.js']) assert.ok(!/require\(['"](fs|child_process)/.test(fs.readFileSync(path.join(root, f), 'utf8')), `${f} must not touch the disk`);
+// Undo covers every editable buffer of both save layouts (Radical Red: data, stream, raw, ext; SoulGold: sb1, sb2, ps).
+assert.ok(appJs.includes(`sv.game === 'sg' ? ['sb1', 'sb2', 'ps'] : ['data', 'stream', 'raw', 'ext']`) && appJs.includes('sv[k].slice()') && appJs.includes('sv[k].set(s[k])'), 'undo snapshot covers every part of both save layouts');
+for (const f of ['src/app.js', 'src/core.js', 'src/sg-core.js']) assert.ok(!/require\(['"](fs|child_process)/.test(fs.readFileSync(path.join(root, f), 'utf8')), `${f} must not touch the disk`);
 // The PID solver must hit every nature/shiny combination quickly.
 for (let n = 0; n < 25; n++) for (const shiny of [true, false]) {
   const pid = C.solvePid({ otid: 0x75CF0AFE, nature: n, shiny }), x = (0x75CF0AFE ^ pid) >>> 0;
@@ -88,3 +89,35 @@ for (const [name, form] of [['Unown', p => ((((p >>> 24) & 3) << 6) | (((p >>> 1
 const set = C.fromShowdown(D, 'Espeon @ Leftovers\nAbility: Magic Bounce\n- Psychic', X);
 assert.strictEqual(set.opts.ability, 2); assert.strictEqual(set.warnings.length, 0);
 console.log('dex checks passed');
+
+// SoulGold: its own data, dex, sprites and icons, all consistent, and nothing shared with Radical Red's tables.
+global.window = {};
+eval(fs.readFileSync(path.join(root, 'src/sg-data.js'), 'utf8'));
+eval(fs.readFileSync(path.join(root, 'src/sg-dex.js'), 'utf8'));
+const SD = window.SG_DATA, SX = window.SG_DEX, SC = require('../src/sg-core.js');
+assert.ok(html.includes('<script src="sg-core.js"></script>') && html.includes('<script src="sg-data.js"></script>') && html.includes('<script src="sg-dex.js"></script>'), 'SoulGold scripts are loaded');
+assert.ok(SD.species.length > 1500 && SD.species.length <= 2048, 'SoulGold species fit 11 bits');
+assert.ok(SD.items.length > 900 && SD.items.length <= 1024, 'SoulGold items fit 10 bits');
+assert.ok(SD.moves.length > 800 && SD.moves.length <= 2048 && SD.pp.length === SD.moves.length, 'SoulGold moves fit 11 bits');
+assert.ok(SD.exp.length >= 6 && SD.exp.every(c => c.length === 101), 'SoulGold growth tables');
+assert.deepStrictEqual(SC.BALLS.slice(0, 5), ['Strange Ball', 'Poké Ball', 'Great Ball', 'Ultra Ball', 'Master Ball']);
+let sgSprites = 0;
+for (const [i, s] of SD.species.entries()) {
+  if (!s.n) continue;
+  assert.ok(s.nat >= 1 && s.nat <= SC.NATIONAL_DEX, `national number of ${s.n}`);
+  assert.ok(s.g >= 1 && s.g <= SD.exp.length, `growth of ${s.n}`);
+  assert.ok(SC.encodeText(SC.defaultNickname(SD, i), 12), `nickname of ${s.n}`);
+  if (s.s !== undefined) { sgSprites = Math.max(sgSprites, s.s + 1); }
+}
+for (let i = 0; i < sgSprites; i++) assert.ok(fs.existsSync(path.join(root, `src/assets/sg/sprites/${i}.png`)), `SoulGold sprite ${i}`);
+for (const [id, s] of Object.entries(SX.species)) {
+  assert.ok(SD.species[id] && SD.species[id].n, `SoulDex species ${id} exists`);
+  for (const e of s.evo) assert.ok(SX.species[e[0]], `SoulDex evolution target ${e[0]} of ${id}`);
+  for (const t of s.t) assert.ok(SX.types.some(x => x.id === t), `SoulDex type ${t} of ${id}`);
+  for (const m of s.ln) assert.ok(SD.moves[m], `SoulDex move ${m} of ${id}`);
+}
+for (const [sp, rows] of Object.entries(SX.enc)) for (const r of rows) assert.ok(SX.species[sp] && SX.areas[r[0]] && SX.methods[r[1]] && r[3] <= r[4], `SoulDex encounter row for ${sp}`);
+assert.strictEqual(SX.metNames[232], 'New Bark Town');
+assert.strictEqual(SD.species[1289].n, 'Sprigatito'); assert.strictEqual(SD.items[28], 'Potion');
+assert.deepStrictEqual(SX.species[157].st, [78, 84, 78, 109, 85, 100], 'Typhlosion base stats');
+console.log('SoulGold checks passed');

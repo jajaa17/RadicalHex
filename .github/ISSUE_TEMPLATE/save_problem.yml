@@ -7,11 +7,21 @@ body:
     attributes:
       value: |
         Your original file is in the `Backups` folder next to RadicalHex.exe (versions before 1.0.5 used `Documents\RadicalHex\Backups`). You can put it back from the **Backups** tab, so nothing is lost.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game is the save from?
+      description: RadicalHex edits Radical Red and SoulGold saves, which work completely differently, so this matters.
+      options:
+        - Radical Red 4.1
+        - SoulGold
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: RadicalHex version
-      placeholder: "1.0.0"
+      placeholder: "2.0.0"
     validations:
       required: true
   - type: dropdown
@@ -35,7 +45,7 @@ body:
     id: emulator
     attributes:
       label: Emulator
-      placeholder: "mGBA 0.10.3, RetroArch with the mGBA core, ..."
+      placeholder: "mGBA 0.10.3, RetroArch (PC or Android) with the mGBA core, ..."
   - type: textarea
     id: files
     attributes:

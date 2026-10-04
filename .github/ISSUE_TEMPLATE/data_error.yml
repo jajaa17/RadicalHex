@@ -1,8 +1,18 @@
 name: Wrong game data
-description: The RadicalDex or Nuzlocke tools show a wrong location, evolution, level cap, stat or name.
+description: The RadicalDex, SoulDex or Nuzlocke tools show a wrong location, evolution, level cap, stat or name.
 title: "[Data] "
 labels: ["bug"]
 body:
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game?
+      description: RadicalDex (Radical Red) or SoulDex (SoulGold)?
+      options:
+        - Radical Red 4.1
+        - SoulGold
+    validations:
+      required: true
   - type: input
     id: pokemon
     attributes:
@@ -14,11 +24,11 @@ body:
     id: wrong
     attributes:
       label: What is wrong?
-      description: What RadicalHex shows, and what the game or the official Radical Red docs say.
+      description: What RadicalHex shows, and what the game or the official docs (Radical Red, or SoulGold's) say.
     validations:
       required: true
   - type: input
     id: source
     attributes:
       label: Where can this be checked?
-      placeholder: "Seen in game on Route 5 / official location doc / dex.radicalred.net"
+      placeholder: "Seen in game on Route 5 / dex.radicalred.net / eemeliri.github.io/soulgold"

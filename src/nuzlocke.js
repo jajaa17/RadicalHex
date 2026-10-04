@@ -2,18 +2,20 @@
 // locations still open for an encounter, and owned evolution families for the dupes clause.
 window.RHNuzlocke = function (ui) {
   'use strict';
-  const { h, put, sprite, D } = ui, X = window.RH_DEX, C = window.RHCore, M = C.mon;
+  const { h, put, sprite, D } = ui, X = ui.X || window.RH_DEX, C = ui.C || window.RHCore, M = C.mon;
+  const G = ui.game || { key: 'rr', full: 'Radical Red 4.1', dexName: 'RadicalDex', specialMet: i => i >= 253 };
+  const real = l => !G.specialMet(l); // a real place, not "hatched", "traded" or "fateful encounter"
   const WILD_METHODS = X.methods.map((m, i) => (/Grass|Surfing|Rock Smash|Rod/.test(m) ? i : -1)).filter(i => i >= 0);
   const norm = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 
   // Per-trainer settings, kept on this computer only.
-  const key = () => { const t = C.trainer(ui.save()); return `radicalhex-nuzlocke-${t.tid}-${t.sid}`; };
+  const key = () => { const t = C.trainer(ui.save()); return `radicalhex-nuzlocke-${G.key === 'rr' ? '' : G.key + '-'}${t.tid}-${t.sid}`; };
   const defaults = { mode: 'normal', cap: 0, grave: -1 };
   function settings() { try { return { ...defaults, ...JSON.parse(localStorage.getItem(key()) || '{}') }; } catch { return { ...defaults }; } }
   function store(s) { try { localStorage.setItem(key(), JSON.stringify(s)); } catch { /* settings are a convenience */ } }
 
   // Met locations that have wild encounters in the official location data (matched by name).
-  const metIds = Object.keys(X.metNames).map(Number).filter(i => i < 253);
+  const metIds = Object.keys(X.metNames).map(Number).filter(real);
   const wildAreas = new Set();
   for (const rows of Object.values(X.enc)) for (const r of rows) if (WILD_METHODS.includes(r[1])) wildAreas.add(r[0]);
   const wildMet = new Set();
@@ -60,8 +62,8 @@ window.RHNuzlocke = function (ui) {
       h('div', { class: 'cards' },
         h('section', { class: 'card' }, h('h3', {}, 'Level cap'),
           h('div', { class: 'form', style: 'grid-template-columns:1fr' },
-            h('label', { class: 'f' }, h('span', {}, 'Difficulty'), h('select', { id: 'nz-mode', onchange: e => set({ mode: e.target.value }) },
-              h('option', { value: 'normal', selected: s.mode === 'normal' }, 'Normal'), h('option', { value: 'hardcore', selected: s.mode === 'hardcore' }, 'Hardcore / Restricted'))),
+            X.caps.some(c => c.normal !== c.hardcore) ? h('label', { class: 'f' }, h('span', {}, 'Difficulty'), h('select', { id: 'nz-mode', onchange: e => set({ mode: e.target.value }) },
+              h('option', { value: 'normal', selected: s.mode === 'normal' }, 'Normal'), h('option', { value: 'hardcore', selected: s.mode === 'hardcore' }, 'Hardcore / Restricted'))) : null,
             h('label', { class: 'f' }, h('span', {}, 'Next boss'), h('select', { id: 'nz-cap', onchange: e => set({ cap: +e.target.value }) },
               X.caps.map((c, i) => h('option', { value: i, selected: i === s.cap }, `${c.n} — Lv ${c[s.mode]}`))))),
           h('div', { class: 'cap-big' }, h('span', { class: 'note' }, 'Current cap'), h('strong', {}, `Lv ${limit}`)),
@@ -76,19 +78,19 @@ window.RHNuzlocke = function (ui) {
             : h('p', { class: 'note' }, 'Pick a box. Pokémon in it count as fainted in these tools.')),
         h('section', { class: 'card' }, h('h3', {}, 'Run summary'),
           h('dl', { class: 'kv' }, h('dt', {}, 'Alive'), h('dd', {}, String(alive.length)), h('dt', {}, 'Fainted'), h('dd', {}, String(mons.length - alive.length)),
-            h('dt', {}, 'Locations with a catch'), h('dd', {}, String(locs.filter(l => l < 253).length)),
+            h('dt', {}, 'Locations with a catch'), h('dd', {}, String(locs.filter(real).length)),
             h('dt', {}, 'Evolution families'), h('dd', {}, String(fam.size))))),
       h('div', { class: 'section-title' }, 'Encounter log'),
       h('p', { class: 'note' }, 'Built from where each Pokémon in your save was met. A location with more than one Pokémon is flagged so you can check it against your rules (gifts, shinies and dupes may be allowed).'),
       h('div', { class: 'table-wrap' }, h('table', { class: 'enc nz-log' },
         h('thead', {}, h('tr', {}, h('th', {}, 'Location'), h('th', {}, 'Pokémon'))),
-        h('tbody', {}, locs.map(l => h('tr', { class: groups.get(l).length > 1 && l < 253 ? 'flag' : '' },
-          h('td', {}, X.metNames[l] || `Location #${l}`, groups.get(l).length > 1 && l < 253 ? h('div', { class: 'warn' }, `${groups.get(l).length} Pokémon met here`) : null),
+        h('tbody', {}, locs.map(l => h('tr', { class: groups.get(l).length > 1 && real(l) ? 'flag' : '' },
+          h('td', {}, X.metNames[l] || `Location #${l}`, groups.get(l).length > 1 && real(l) ? h('div', { class: 'warn' }, `${groups.get(l).length} Pokémon met here`) : null),
           h('td', {}, h('div', { class: 'nz-chips' }, groups.get(l).map(m => chip(m, null, false))))))))),
       h('div', { class: 'section-title' }, 'No encounter yet'),
       open.length ? h('div', { class: 'nz-open' }, open.map(i => h('span', { class: 'chip' }, X.metNames[i])))
         : h('p', { class: 'note' }, 'You have a catch from every location with wild Pokémon that RadicalHex can match.'),
-      h('p', { class: 'note' }, 'Locations with wild Pokémon in the official Radical Red 4.1 data where none of your Pokémon was met. Open the RadicalDex to see what lives there.'),
+      h('p', { class: 'note' }, `Locations with wild Pokémon in the ${G.key === 'rr' ? 'official Radical Red 4.1' : G.full} data where none of your Pokémon was met. Open the ${G.dexName} to see what lives there.`),
       h('div', { class: 'section-title' }, 'Evolution families you own'),
       h('div', { class: 'nz-open' }, [...fam.entries()].sort((a, b) => X.species[a[0]].nat - X.species[b[0]].nat).map(([anc, n]) =>
         h('button', { type: 'button', class: 'chip-btn', onclick: () => ui.openDex(anc) }, sprite(anc, false, 24), D.species[anc] ? D.species[anc].n : '#' + anc, n > 1 ? h('span', { class: 'note' }, ` ×${n}`) : null))));

@@ -1,7 +1,16 @@
 // RadicalHex window: storage view, Pokémon editor, trainer & bag, backups.
 (() => {
   'use strict';
-  const C = window.RHCore, D = window.RH_DATA, M = C.mon, S = window.RHSound;
+  // Two games: Radical Red (CFRU) and SoulGold (pokeemerald-expansion). Each has its own save core, data and dex, picked
+  // from the save that is opened; nothing is shared between them, so no species, move or item crosses over.
+  const GAMES = {
+    rr: { key: 'rr', C: window.RHCore, D: window.RH_DATA, X: window.RH_DEX, name: 'Radical Red', full: 'Radical Red 4.1', dexName: 'RadicalDex',
+      assets: 'assets', specialMet: i => i >= 253, metMax: 255, defaultMet: 88 },
+  };
+  if (window.SGCore && window.SG_DATA && window.SG_DEX) GAMES.sg = { key: 'sg', C: window.SGCore, D: window.SG_DATA, X: window.SG_DEX, name: 'SoulGold',
+    full: 'SoulGold', dexName: 'SoulDex', assets: 'assets/sg', specialMet: i => i >= 0x7FFD, metMax: 0x7FFF, defaultMet: 232 };
+  let G = GAMES.rr, C = G.C, D = G.D, M = C.mon, X = G.X;
+  const S = window.RHSound;
   const host = window.rh || null; // desktop bridge (preload.js); null when opened in a plain browser
   const $ = (s, el = document) => el.querySelector(s);
 
@@ -30,7 +39,7 @@
   // RadicalHaX mode: no legality checks, and illegal options (battle-only forms) unlocked. Save safety checks always stay on.
   let hax = false;
   try { hax = localStorage.getItem('radicalhex-hax') === '1'; } catch { /* default off */ }
-  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, window.RH_DEX, r));
+  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, X, r));
   const illegal = r => legal(r).some(p => p.level === 'error');
 
   // ── Names ──
@@ -46,7 +55,7 @@
       el.style.width = el.style.height = size + 'px';
       return el;
     }
-    return h('img', { class: 'spr', src: `assets/sprites/${shiny ? 'shiny/' : ''}${s.s}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
+    return h('img', { class: 'spr', src: `${G.assets}/sprites/${shiny ? 'shiny/' : ''}${s.s}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
   }
 
   // Cries: a "Cry" button, and the big sprite plays it too when clicked (it hops along).
@@ -65,10 +74,10 @@
     return h('button', { type: 'button', class: 'btn small cry', title: `Play ${spName(sp)}'s cry`, onclick: () => S.cry(nat, pic) }, svgIcon(SPEAKER), 'Cry');
   }
 
-  // Item icons: Radical Red's own 24x24 bag graphics, one PNG per item id.
+  // Item icons: the game's own 24x24 bag graphics, one PNG per item id.
   function itemIcon(id, size = 24) {
     if (!id || !C.validItem(D, id)) return null;
-    return h('img', { class: 'item-icon', src: `assets/items/${id}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
+    return h('img', { class: 'item-icon', src: `${G.assets}/items/${id}.png`, width: size, height: size, alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' });
   }
   const spriteIcon = (id, size) => sprite(id, false, size);
 
@@ -173,10 +182,12 @@
   const showError = (title, err) => modal(title, err.message || String(err), [{ text: 'OK', primary: true }]);
 
   // ── Changes and undo ──
-  const snapshot = () => ({ data: sv.data.slice(), stream: sv.stream.slice(), raw: sv.raw.slice(), ext: sv.ext.slice() });
-  const restore = s => { sv.data.set(s.data); sv.stream.set(s.stream); sv.raw.set(s.raw); sv.ext.set(s.ext); };
+  // The editable buffers of the open save: Radical Red keeps four, SoulGold three (its save blocks and the PC).
+  const parts = () => (sv.game === 'sg' ? ['sb1', 'sb2', 'ps'] : ['data', 'stream', 'raw', 'ext']);
+  const snapshot = () => Object.fromEntries(parts().map(k => [k, sv[k].slice()]));
+  const restore = s => { for (const k of parts()) sv[k].set(s[k]); };
   const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
-  const unchanged = s => sameBytes(s.data, sv.data) && sameBytes(s.stream, sv.stream) && sameBytes(s.raw, sv.raw) && sameBytes(s.ext, sv.ext);
+  const unchanged = s => parts().every(k => sameBytes(s[k], sv[k]));
   // Runs one edit. If it throws, the save is put back exactly as it was.
   function change(what, fn, opts = {}) {
     const before = snapshot();
@@ -346,7 +357,7 @@
         illegalButton(),
         h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 25 boxes' }, 'Max IVs on everything')),
       h('div', { class: 'storage' }, grid, partyCol),
-      box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
+      G.key === 'rr' && box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
       h('p', { class: 'note' }, 'Drag a Pokémon onto any box or party slot to move or swap it. Hold it over ‹ or › to flip to another box. Click an empty slot to add a new Pokémon.'));
   }
 
@@ -465,7 +476,6 @@
   }
 
   // Every editor change goes through here: party Pokémon get their battle stats recalculated afterwards.
-  const X = window.RH_DEX;
   // Ability choices like PKHeX: the species' ability 1, ability 2 and hidden ability, by name.
   // A slot the species lacks is only listed when the Pokémon is already set to it; uses = the ability the game falls back to.
   const SLOT = ['1', '2', 'H'];
@@ -481,7 +491,7 @@
   function legalityPanel(r) {
     if (hax) return null;
     const list = legal(r), errors = list.filter(p => p.level === 'error'), warns = list.filter(p => p.level === 'warn'), info = list.filter(p => p.level === 'info');
-    if (!list.length) return h('div', { class: 'legal ok', role: 'status' }, h('strong', {}, '✓ Legal'), h('span', { class: 'note' }, 'Matches Radical Red\'s rules.'));
+    if (!list.length) return h('div', { class: 'legal ok', role: 'status' }, h('strong', {}, '✓ Legal'), h('span', { class: 'note' }, `Matches ${G.name}'s rules.`));
     const cls = errors.length ? 'bad' : warns.length ? 'warn' : 'info';
     const title = errors.length ? `✕ Illegal: ${errors.length} problem${errors.length > 1 ? 's' : ''}` : warns.length ? `! ${warns.length} thing${warns.length > 1 ? 's' : ''} to check` : 'Not checked';
     return h('div', { class: 'legal ' + cls, role: 'status' }, h('strong', {}, title),
@@ -500,9 +510,9 @@
           if (wasDefault) M.setNickname(r, C.defaultNickname(D, id));
         }, { full: true });
       } }), ' wide'),
-      field('Nickname', h('input', { id: 'ed-nick', type: 'text', maxlength: 10, value: M.nickname(r), onchange: e => {
+      field('Nickname', h('input', { id: 'ed-nick', type: 'text', maxlength: C.NICK_LEN || 10, value: M.nickname(r), onchange: e => {
         const v = e.target.value.trim() || C.defaultNickname(D, sp);
-        if (!C.encodeText(v, 10)) { e.target.classList.add('bad'); status('That nickname uses a character the game cannot show.', 'err'); return; }
+        if (!C.encodeText(v, C.NICK_LEN || 10)) { e.target.classList.add('bad'); status('That nickname uses a character the game cannot show.', 'err'); return; }
         edit(r, 'Renamed to ' + v, () => M.setNickname(r, v), { full: true });
       } }), ' wide'),
       field(lv ? 'Level' : 'Level (no data for this species)', h('input', { id: 'ed-level', type: 'number', min: 1, max: 100, value: lv || '', disabled: !lv, onchange: e => {
@@ -525,10 +535,10 @@
         edit(r, `Set ability to ${(X.species[sp] && X.species[sp].ab[i]) || ['ability 1', 'ability 2', 'hidden ability'][i]}`, () => C.setAbility(D, r, i), { full: true });
       } }, abilityOptions(sp, M.abilityIndex(r), C.abilityName(X, r)))),
       h('label', { class: 'check' }, h('input', { id: 'ed-shiny', type: 'checkbox', checked: M.shiny(r), onchange: e => edit(r, e.target.checked ? 'Made shiny' : 'Made not shiny', () => C.setNatureShiny(r, M.nature(r), e.target.checked, D), { full: true, sfx: e.target.checked ? 'shiny' : 'ok' }) }), '★ Shiny')),
-      sel.party ? h('p', { class: 'note' }, 'Battle stats are recalculated from Radical Red\'s base stats whenever you edit a party Pokémon.') : null];
+      sel.party ? h('p', { class: 'note' }, `Battle stats are recalculated from ${G.name}'s base stats whenever you edit a party Pokémon.`) : null];
   }
 
-  // Move choices. Normal mode lists only moves the species can learn in Radical Red (the same list the legality
+  // Move choices. Normal mode lists only moves the species can learn in the game (the same list the legality
   // check uses) that are not already in another slot; RadicalHaX mode lists every move. The current move stays listed.
   // lv: its level; moves it only learns by levelling up later are marked with that level.
   function moveChoices(sp, mv, i, lv) {
@@ -538,8 +548,8 @@
       .map(o => { const e = lo.get(o.id); return e && lv && e[1] > lv ? { id: o.id, label: `${o.label} · Lv ${e[1]}` } : o; });
   }
   const moveNote = sp => (hax ? 'RadicalHaX mode: every move is listed.'
-    : X.species[sp] ? `Only moves ${spName(sp)} can learn in Radical Red are listed (level-up, TM, tutor, egg and pre-evolution moves). A move marked "Lv" is learned by levelling up at that level, so picking it earlier shows a warning. Turn on RadicalHaX mode for any move.`
-      : `There is no Radical Red move data for ${spName(sp)}, so every move is listed.`);
+    : X.species[sp] ? `Only moves ${spName(sp)} can learn in ${G.name} are listed (level-up, TM, tutor, egg and pre-evolution moves). A move marked "Lv" is learned by levelling up at that level, so picking it earlier shows a warning. Turn on RadicalHaX mode for any move.`
+      : `There is no ${G.name} move data for ${spName(sp)}, so every move is listed.`);
   // Exact EXP (like PKHeX): the level follows it. Under Level and EXP, an EXP bar like the game's summary screen,
   // with what's left to the next level and a one-click "edge" (1 EXP before the next level).
   function expField(r) {
@@ -626,19 +636,24 @@
 
   // ── Met locations: FireRed's places, with the ones where the Pokémon's evolution family is found in Radical Red first ──
   const normPlace = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
-  const metIds = Object.keys(X.metNames).map(Number);
-  const dupNames = new Set(metIds.map(i => X.metNames[i]).filter((n, k, a) => a.indexOf(n) !== k));
+  let metIds, dupNames, sortedMet, areaMet, families, foundCache;
   const placeName = i => (X.metNames[i] ? X.metNames[i] + (dupNames.has(X.metNames[i]) ? ` #${i}` : '') : `#${i} (not a real place)`);
-  const sortedMet = metIds.slice().sort((a, b) => placeName(a).localeCompare(placeName(b)));
-  // Encounter area -> met location (the same name matching the Nuzlocke tools use; "Route 4 Poke Center" -> Route 4).
-  const areaMet = X.areas.map(a => {
-    const an = normPlace(a); let best = -1, len = 0;
-    for (const i of metIds) { if (i >= 253) continue; const mn = normPlace(X.metNames[i]); if ((an === mn || an.startsWith(mn + ' ')) && mn.length > len) { best = i; len = mn.length; } }
-    return best;
-  });
-  const families = new Map();
-  for (const [id, s] of Object.entries(X.species)) { if (!families.has(s.anc)) families.set(s.anc, []); families.get(s.anc).push(+id); }
-  const foundCache = new Map();
+  // Rebuilt when the game changes.
+  function bindMet() {
+    metIds = Object.keys(X.metNames).map(Number);
+    dupNames = new Set(metIds.map(i => X.metNames[i]).filter((n, k, a) => a.indexOf(n) !== k));
+    sortedMet = metIds.slice().sort((a, b) => placeName(a).localeCompare(placeName(b)));
+    // Encounter area -> met location (the same name matching the Nuzlocke tools use; "Route 4 Poke Center" -> Route 4).
+    areaMet = X.areas.map(a => {
+      const an = normPlace(a); let best = -1, len = 0;
+      for (const i of metIds) { if (G.specialMet(i)) continue; const mn = normPlace(X.metNames[i]); if ((an === mn || an.startsWith(mn + ' ')) && mn.length > len) { best = i; len = mn.length; } }
+      return best;
+    });
+    families = new Map();
+    for (const [id, s] of Object.entries(X.species)) { if (!families.has(s.anc)) families.set(s.anc, []); families.get(s.anc).push(+id); }
+    foundCache = new Map();
+  }
+  bindMet();
   function foundAt(sp) {
     if (!foundCache.has(sp)) {
       const set = new Set(), fam = X.species[sp] ? families.get(X.species[sp].anc) || [sp] : [sp];
@@ -677,7 +692,7 @@
       field('Secret ID', numBox('ed-sid', sid, 0, 65535, 'Secret ID', v => edit(r, `Set the secret ID to ${v}`, () => C.setOtIds(D, r, M.otid(r) & 0xFFFF, v), { full: true }))),
       field('Met location', h('select', { id: 'ed-met', onchange: e => edit(r, `Set the met location to ${placeName(+e.target.value)}`, () => M.setMetLocation(r, +e.target.value), { full: true }) },
         metOptions(sp, M.metLocation(r))), ' wide'),
-      hax ? field('Met location number (any, RadicalHaX)', numBox('ed-metn', M.metLocation(r), 0, 255, 'Met location number',
+      hax ? field('Met location number (any, RadicalHaX)', numBox('ed-metn', M.metLocation(r), 0, G.metMax, 'Met location number',
         v => edit(r, `Set the met location to #${v}`, () => M.setMetLocation(r, v), { full: true }))) : null,
       field(hax ? 'Met at level' : `Met at level (0–${metMax})`, numBox('ed-metlv', M.metLevel(r), 0, metMax, 'Met at level', (v, capped) => {
         edit(r, `Set the met level to ${v}`, () => M.setMetLevel(r, v), { full: true });
@@ -762,14 +777,14 @@
         onclick: () => { const [b, s] = spot; if (change(`Moved ${M.nickname(r)} to the graveyard`, () => C.swap(r, C.boxRef(sv, b, s)))) select(false, b, s); } }, 'Move to graveyard'));
     }
     row.append(h('span', { class: 'grow' }),
-      ...(dexView.has(M.species(r)) ? [h('button', { class: 'link', type: 'button', onclick: () => openDex(M.species(r)) }, 'RadicalDex')] : []),
+      ...(dexView.has(M.species(r)) ? [h('button', { class: 'link', type: 'button', onclick: () => openDex(M.species(r)) }, G.dexName)] : []),
       h('button', { class: 'link', type: 'button', onclick: () => copy(C.toShowdown(D, r, X)) }, 'Copy Showdown set'));
     return row;
   }
 
   // ── Add a Pokémon (empty box slot) ──
-  const newDraft = () => ({ species: 0, nickname: '', level: 50, nature: 0, gender: null, shiny: false, item: 0, ball: 3, friendship: 70,
-    ability: 0, metLocation: 88, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
+  const newDraft = () => ({ species: 0, nickname: '', level: 50, nature: 0, gender: null, shiny: false, item: 0, ball: Math.max(0, C.BALLS.indexOf('Poké Ball')), friendship: 70,
+    ability: 0, metLocation: G.defaultMet, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
   function addForm() {
     if (!draft) draft = newDraft();
     const d = draft, ratio = d.species ? C.genderRatio(D, d.species) : 127, fixed = ratio === 0 || ratio >= 254;
@@ -790,7 +805,7 @@
               if (!addable(opts.species)) throw new Error(`${spName(opts.species)} cannot be added (battle-only form or missing level data).`);
               if (!hax && X.species[opts.species]) {
                 const set = C.learnable(X, opts.species), cut = [...new Set(opts.moves.filter(m => m && !set.has(m)))];
-                if (cut.length) warnings.push(`${spName(opts.species)} can't learn ${cut.map(m => D.moves[m]).join(', ')} in Radical Red, so ${cut.length > 1 ? 'they were' : 'it was'} left out (RadicalHaX mode keeps ${cut.length > 1 ? 'them' : 'it'}).`);
+                if (cut.length) warnings.push(`${spName(opts.species)} can't learn ${cut.map(m => D.moves[m]).join(', ')} in ${G.name}, so ${cut.length > 1 ? 'they were' : 'it was'} left out (RadicalHaX mode keeps ${cut.length > 1 ? 'them' : 'it'}).`);
                 opts.moves = packMoves(opts.moves, set);
                 if (!opts.moves.some(x => x)) opts.moves = startMoves(opts.species, opts.level);
                 const ev = C.clampEvs(opts.evs);
@@ -810,8 +825,8 @@
             if (!d.moves.some(x => x)) d.moves = startMoves(id, d.level);
             rerender();
           } }), ' wide'),
-        field('Nickname', h('input', { id: 'add-nick', type: 'text', maxlength: 10, value: d.nickname, placeholder: d.species ? C.defaultNickname(D, d.species) : 'Species name', onchange: e => {
-          if (e.target.value && !C.encodeText(e.target.value, 10)) return pickBad(e, 'That nickname uses a character the game cannot show.');
+        field('Nickname', h('input', { id: 'add-nick', type: 'text', maxlength: C.NICK_LEN || 10, value: d.nickname, placeholder: d.species ? C.defaultNickname(D, d.species) : 'Species name', onchange: e => {
+          if (e.target.value && !C.encodeText(e.target.value, C.NICK_LEN || 10)) return pickBad(e, 'That nickname uses a character the game cannot show.');
           d.nickname = e.target.value.trim();
         } })),
         field('Level', h('input', { id: 'add-level', type: 'number', min: 1, max: 100, value: d.level, onchange: e => { d.level = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1)); e.target.value = d.level; } })),
@@ -985,7 +1000,7 @@
     if (choice !== 1) return;
     try {
       const bytes = await host.readBackup(b.path);
-      const next = C.load(bytes); // only real Radical Red saves are restored
+      const next = C.load(bytes); // only real saves of the same game are restored
       await host.save(bytes);     // main backs up the current file before writing
       sv = next; undo = []; dirty = 0; draft = null;
       renderAll();
@@ -998,9 +1013,15 @@
     if (!dirty) return true;
     return (await modal('Discard unsaved changes?', `You have ${dirty} unsaved change${dirty === 1 ? '' : 's'} in ${fileName}.`, [{ text: 'Cancel' }, { text: 'Discard', primary: true }])) === 1;
   }
+  // Which game a save is from: SoulGold's checks (its storage overflow and box 19 sectors, with their own checksums)
+  // can't pass on a Radical Red file, so SoulGold is tried first and anything else opens exactly as before.
+  function detect(bytes) {
+    if (GAMES.sg) { try { return { game: GAMES.sg, next: GAMES.sg.C.load(bytes) }; } catch { /* not SoulGold */ } }
+    return { game: GAMES.rr, next: GAMES.rr.C.load(bytes) };
+  }
   async function openBytes(bytes, name) {
-    let next;
-    try { next = C.load(bytes); } catch (e) {
+    let next, game;
+    try { ({ next, game } = detect(bytes)); } catch (e) {
       if (sv) showError('Could not open ' + name, e); else { $('#welcomeMsg').textContent = e.message; }
       return;
     }
@@ -1013,20 +1034,23 @@
         [{ text: "Don't open it" }, { text: `Open save #${next.saveIndex}`, primary: true }]);
       if (choice !== 1) return;
     }
-    // A save with Pokémon, moves or items Radical Red 4.1 doesn't have is probably from another version (a future
-    // Radical Red 5.0, say). Ask before editing it.
-    const unknown = C.unknownData(next, D);
+    // A save with Pokémon, moves or items the game doesn't have is probably from another version (a future
+    // Radical Red 5.0, or a newer SoulGold). Ask before editing it.
+    const unknown = game.C.unknownData(next, game.D);
     if (unknown.length) {
-      modal('This save may not be from Radical Red 4.1',
-        `RadicalHex found things Radical Red 4.1 doesn't have:\n${unknown.slice(0, 6).join('\n')}${unknown.length > 6 ? `\n…and ${unknown.length - 6} more` : ''}\n\n`
-        + 'It may be from a newer Radical Red, or another hack. RadicalHex only knows 4.1, so editing this save could damage it. Check the Releases page for a newer RadicalHex. If you open it anyway, keep your own copy of the file.',
+      const newer = game.key === 'rr' ? 'It may be from a newer Radical Red, or another hack. RadicalHex only knows 4.1, so editing this save could damage it.'
+        : 'It may be from a newer SoulGold. RadicalHex knows the SoulGold it was built from, so editing this save could damage it.';
+      modal(`This save may not be from ${game.full}`,
+        `RadicalHex found things ${game.full} doesn't have:\n${unknown.slice(0, 6).join('\n')}${unknown.length > 6 ? `\n…and ${unknown.length - 6} more` : ''}\n\n`
+        + newer + ' Check the Releases page for a newer RadicalHex. If you open it anyway, keep your own copy of the file.',
         [{ text: 'Don\'t open it', primary: true }, { text: 'Open anyway' }])
-        .then(choice => { if (choice === 1) showSave(next, name, unknown.length); });
+        .then(choice => { if (choice === 1) showSave(next, name, unknown.length, game); });
       return;
     }
-    showSave(next, name, 0);
+    showSave(next, name, 0, game);
   }
-  function showSave(next, name, unknownCount) {
+  function showSave(next, name, unknownCount, game = GAMES.rr) {
+    setGame(game);
     sv = next; fileName = name; undo = []; dirty = 0; draft = null;
     sel = { party: C.partyCount(sv) > 0, box: 0, slot: 0 }; box = 0;
     $('#welcome').hidden = true; $('#app').hidden = false; $('#app').classList.remove('dex-only');
@@ -1034,8 +1058,8 @@
     dexOnly = false;
     if (host) host.setDirty(false).catch(() => {});
     renderAll();
-    if (unknownCount) { status(`Opened ${name}, which has ${unknownCount} thing${unknownCount === 1 ? '' : 's'} Radical Red 4.1 doesn't have. Edit with care.`, 'err'); return; }
-    status(`Opened ${name}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
+    if (unknownCount) { status(`Opened ${name}, which has ${unknownCount} thing${unknownCount === 1 ? '' : 's'} ${G.full} doesn't have. Edit with care.`, 'err'); return; }
+    status(`Opened ${name}${G.key === 'sg' ? ' (SoulGold)' : ''}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
     S.play('ok');
   }
   async function open() {
@@ -1130,14 +1154,39 @@
   function trim() { if (!host || !host.trimMemory) return; clearTimeout(trimTimer); trimTimer = setTimeout(() => host.trimMemory(), 1500); }
   function renderAll() { renderHeader(); setTab(tab); renderEditor(); }
   function openDex(id) { setTab('dex'); dexView.show(id); }
-  // Shared with radicaldex.js and nuzlocke.js.
-  const ui = { h, put, sprite, cryButton, D, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
-  const dexView = window.RHDexView(ui), nuz = window.RHNuzlocke(ui);
-  $('#btnDex').onclick = () => {
+  // Shared with radicaldex.js and nuzlocke.js: one dex view and one Nuzlocke view per game, each with its own data.
+  const views = {};
+  function viewsFor(g) {
+    if (!views[g.key]) {
+      const ui = { h, put, sprite, cryButton, D: g.D, X: g.X, C: g.C, game: g, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
+      views[g.key] = { dex: window.RHDexView(ui), nuz: window.RHNuzlocke(ui) };
+    }
+    return views[g.key];
+  }
+  let dexView, nuz;
+  // Switches every game-specific table at once: core, data, dex, assets, met places, lists, names and colours.
+  function setGame(g) {
+    G = g; C = g.C; D = g.D; M = C.mon; X = g.X;
+    OPTS = {};
+    if (!C.POCKETS.some(p => p.key === pocket)) pocket = 'items';
+    bindMet();
+    ({ dex: dexView, nuz } = viewsFor(g));
+    const dexTab = document.querySelector('.tab[data-tab="dex"]');
+    if (dexTab) dexTab.textContent = g.dexName;
+    document.body.classList.toggle('game-sg', g.key === 'sg');
+    document.title = g.key === 'sg' ? 'RadicalHex · SoulGold' : 'RadicalHex';
+    renderHax();
+  }
+  const browseDex = g => {
+    if (sv && g !== G) return; // the open save decides the game
+    setGame(g);
     dexOnly = true;
     $('#welcome').hidden = true; $('#app').hidden = false; $('#app').classList.add('dex-only');
     setTab('dex');
   };
+  setGame(GAMES.rr);
+  $('#btnDex').onclick = () => browseDex(GAMES.rr);
+  if ($('#btnSoulDex')) { if (GAMES.sg) $('#btnSoulDex').onclick = () => browseDex(GAMES.sg); else $('#btnSoulDex').hidden = true; }
 
   // Sounds: a tiny blip for clicks (each control kind has its own), on/off button in the top bar.
   document.addEventListener('click', e => {
@@ -1160,7 +1209,7 @@
     b.textContent = hax ? 'RadicalHaX mode' : 'Legality checks on';
     b.classList.toggle('hax', hax);
     b.title = hax ? 'Illegal Pokémon allowed and not checked. Save safety checks still run. Click to turn legality checks back on.'
-      : 'Pokémon are checked against Radical Red\'s rules. Click for RadicalHaX mode (anything goes).';
+      : `Pokémon are checked against ${G.name}'s rules. Click for RadicalHaX mode (anything goes).`;
     document.body.classList.toggle('hax-on', hax);
   }
   $('#btnHax').onclick = () => {

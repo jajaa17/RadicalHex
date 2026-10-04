@@ -1,9 +1,10 @@
-// RadicalDex: Radical Red 4.1 species data — types, stats, abilities, evolutions, Megas and forms, locations, moves.
-// Data: src/dex.js, built from the official Radical Red dex (dex.radicalred.net) by tools/build-dex.js.
+// RadicalDex (Radical Red 4.1) and SoulDex (SoulGold): species data — types, stats, abilities, evolutions, Megas and forms,
+// locations, moves. Radical Red data: src/dex.js (tools/build-dex.js); SoulGold data: src/sg-dex.js (tools/build-sg-data.py).
 window.RHDexView = function (ui) {
   'use strict';
-  const { h, sprite, D } = ui, X = window.RH_DEX;
-  const C = window.RHCore;
+  const { h, sprite, D } = ui, X = ui.X || window.RH_DEX;
+  const C = ui.C || window.RHCore;
+  const G = ui.game || { key: 'rr', name: 'Radical Red', full: 'Radical Red 4.1' };
   const name = id => (D.species[id] && D.species[id].n) || `#${id}`;
   const all = Object.keys(X.species).map(Number).filter(id => D.species[id] && D.species[id].n)
     .sort((a, b) => X.species[a].nat - X.species[b].nat || a - b);
@@ -100,6 +101,8 @@ window.RHDexView = function (ui) {
     const sv = ui.save();
     const dexState = sv && s.nat <= C.NATIONAL_DEX ? (C.dex.caught(sv, s.nat) ? 'Caught' : C.dex.seen(sv, s.nat) ? 'Seen' : 'Not seen') : null;
     const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, a)) : null));
+    // SoulGold gives every Pokémon extra always-on abilities ("innates") besides its normal one.
+    if (s.inn && s.inn.length) abil.push(h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, s.inn.length > 1 ? 'Innates' : 'Innate'), h('span', {}, s.inn.join(', '))));
     const pic = sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144);
     return h('div', { class: 'dex-detail' },
       h('div', { class: 'dex-hero' },
@@ -117,7 +120,7 @@ window.RHDexView = function (ui) {
       h('div', { class: 'dex-grid' },
         h('section', { class: 'card' }, h('h3', {}, 'Base stats'), stats(s.st)),
         h('section', { class: 'card' }, h('h3', {}, 'Abilities'), h('div', { class: 'kv-list' }, abil),
-          h('p', { class: 'note' }, 'Radical Red values, which can differ from the official games.'))),
+          h('p', { class: 'note' }, `${G.name} values, which can differ from the official games.`))),
       h('section', { class: 'card' }, h('h3', {}, 'Evolution'),
         members.length > 1 ? h('div', { class: 'evo-scroll' }, tree(root)) : h('p', { class: 'note' }, 'This Pokémon does not evolve.')),
       changes.length ? h('section', { class: 'card' }, h('h3', {}, 'Mega Evolution and form changes'),
@@ -131,8 +134,9 @@ window.RHDexView = function (ui) {
             h('td', { class: 'mono' }, e[2] == null ? '—' : e[2] + '%'))))))
           : h('p', { class: 'note' }, members.length > 1 && root !== id
             ? `Not listed in the wild, as a gift, trade or raid. Evolve it from ${name(root)} instead.`
-            : 'Not listed in the wild, as a gift, trade or raid in Radical Red 4.1.'),
-        enc.length ? h('p', { class: 'note' }, 'Wild levels scale with your progress in Radical Red. Chances are per encounter for that method.') : null),
+            : G.key === 'rr' ? 'Not listed in the wild, as a gift, trade or raid in Radical Red 4.1.' : `Not listed in ${G.name}'s wild encounters.`),
+        enc.length ? h('p', { class: 'note' }, G.key === 'rr' ? 'Wild levels scale with your progress in Radical Red. Chances are per encounter for that method.'
+          : `Wild Pokémon from ${G.name}'s own encounter tables. Chances are per encounter for that method.`) : null),
       s.lv.length ? h('section', { class: 'card' }, h('h3', {}, 'Level-up moves'),
         h('div', { class: 'moves-grid' }, s.lv.map(([m, lv]) => [h('span', { class: 'mono muted' }, lv ? 'Lv ' + lv : 'Evo'), h('span', {}, D.moves[m] || '#' + m)]))) : null);
   }

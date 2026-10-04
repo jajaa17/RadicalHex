@@ -6,12 +6,24 @@ body:
   - type: markdown
     attributes:
       value: Thanks for reporting! Fill in what you can. Screenshots help a lot.
+  - type: dropdown
+    id: game
+    attributes:
+      label: Which game is the save from?
+      description: RadicalHex edits Radical Red and SoulGold saves, which work completely differently, so this matters.
+      options:
+        - Radical Red 4.1
+        - SoulGold
+        - Both
+        - Not about a save (the app itself)
+    validations:
+      required: true
   - type: input
     id: version
     attributes:
       label: RadicalHex version
       description: Shown on the Releases page you downloaded from.
-      placeholder: "1.0.0"
+      placeholder: "2.0.0"
     validations:
       required: true
   - type: textarea

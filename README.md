@@ -1,8 +1,8 @@
 <p align="center"><img src="build/icon.png" width="96" alt=""></p>
 
-<h1 align="center">RadicalHex — Radical Red Save Editor</h1>
+<h1 align="center">RadicalHex — Radical Red & SoulGold Save Editor</h1>
 
-<p align="center">A free <b>Pokémon Radical Red 4.1 save editor</b> and Pokédex for Windows, in the spirit of PKHeX.<br>Edit Pokémon, boxes, party, items and money in your Radical Red <code>.sav</code> file, check legality, and plan Nuzlocke runs.</p>
+<p align="center">A free <b>Pokémon Radical Red 4.1</b> and <b>Pokémon SoulGold</b> save editor and Pokédex for Windows, in the spirit of PKHeX.<br>Edit Pokémon, boxes, party, items and money in your <code>.sav</code> or <code>.srm</code> file, check legality, and plan Nuzlocke runs.</p>
 
 <p align="center">Tested and used alongside <b>mGBA</b> and <b>RetroArch</b> (the Steam version on PC, and Android), and works with saves from both.</p>
 
@@ -12,7 +12,7 @@
 
 > [!WARNING]
 > **Editing a save always carries some risk. Use RadicalHex at your own risk.**
-> RadicalHex backs up your save every time you open or save it, checks every save before writing it, and refuses to write anything that looks wrong. Even so, it can't guarantee your save will never break. Radical Red is a ROM hack with its own rules, and some edits the file allows can still confuse the game: RadicalHaX mode, battle-only forms, key items, story items, extreme values, or lots of big edits at once. **Keep your own copy of your save before editing**, make changes a few at a time, and test them in the game. If something goes wrong, restore a backup from the **Backups** tab.
+> RadicalHex backs up your save every time you open or save it, checks every save before writing it, and refuses to write anything that looks wrong. Even so, it can't guarantee your save will never break. Radical Red and SoulGold are ROM hacks with their own rules, and some edits the file allows can still confuse the game: RadicalHaX mode, battle-only forms, key items, story items, extreme values, or lots of big edits at once. **Keep your own copy of your save before editing**, make changes a few at a time, and test them in the game. If something goes wrong, restore a backup from the **Backups** tab.
 
 ## Download
 
@@ -27,6 +27,17 @@ Every release also includes the full source code (zip and tar.gz), so anyone can
 **Found a bug or something wrong?** Please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose). Every report helps.
 
 ## Features
+
+### Two games: Radical Red and SoulGold
+RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGold](https://github.com/Eemeliri/soulgold)** (the Johto hack by Eemeliri, built on pokeemerald-expansion). It works out which game a save is from by itself.
+- **Each game keeps to itself.** Radical Red and SoulGold store their saves completely differently, so each has its own save engine, Pokémon, moves, items, abilities, learnsets and locations. A SoulGold save only ever offers SoulGold species, moves and items, and a Radical Red save only Radical Red's, so nothing crosses over.
+- **You can see which game is open:** a SoulGold save turns the accent from crimson to gold, the status line says "(SoulGold)", and the Pokédex tab becomes the **SoulDex**.
+- **The same features for both:** boxes with drag and drop, party, the editor (species, level, EXP, nature, shininess, ability, moves, IVs, EVs, held item, ball, origin), legality checks, Showdown sets, trainer and bag, Pokédex registration, Nuzlocke tools, backups, the save converter and undo.
+- **SoulGold specifics:** 19 PC boxes, 8 bag pockets (including Medicine, Mega Stones and Battle Items), 12-letter nicknames, innate abilities shown in the SoulDex, and the new Mega Evolutions (Typhlosion, Meowscarada, Primarina, Absol-Z and more) as battle-only forms.
+- **SoulGold's data comes straight from the game.** Its species, base stats, learnsets, evolutions, items, moves and sprites are read from the hack's own source with the same compiler the game is built with, and the save layout was checked byte for byte against real SoulGold saves.
+- **Checked with SoulGold's own save code.** SoulGold's real save routines (compiled for the GBA's CPU and run in an emulator) load every save RadicalHex writes, exactly as RadicalHex wrote it, including all 19 boxes, the party and the bag, and then save over it again with every edit kept.
+
+![A SoulGold save open in RadicalHex, with the gold accent](docs/screenshot-soulgold.png)
 
 ### Boxes
 - All 25 boxes (23–25 unlock in the game as your PC fills up) with normal and shiny sprites, a star for shinies, a mark for perfect IVs and the icon of each held item
@@ -147,11 +158,11 @@ Good to know:
 **Is there a PKHeX for Radical Red?**
 PKHeX can't edit Radical Red saves properly, because Radical Red is built on the Complete Fire Red Upgrade engine and stores Pokémon, boxes and the Pokédex its own way. RadicalHex is a PKHeX-style save editor made for Radical Red's format.
 
-**How do I edit my Radical Red save?**
+**How do I edit my Radical Red or SoulGold save?**
 Close the game, download `RadicalHex.exe` from the [Releases page](https://github.com/jajaa17/RadicalHex/releases/latest), open your `.sav` (or `.srm`), make your changes and press **Save**. Then load the game again. See [Using it](#using-it).
 
 **Which saves does it open?**
-Radical Red battery saves (`.sav`, `.srm`) from emulators like mGBA, VBA-M, RetroArch and My Boy!. Not save states. If your emulator is on a phone, copy the save to a PC, edit it there and copy it back.
+Radical Red 4.1 and SoulGold battery saves (`.sav`, `.srm`) from emulators like mGBA, VBA-M, RetroArch and My Boy!. RadicalHex tells which game a save is from by itself. Not save states. If your emulator is on a phone, copy the save to a PC, edit it there and copy it back.
 
 **How do I play the same save on my phone (RetroArch) and my PC?**
 1. On the PC, open your save in RadicalHex and press **Convert…** → **RetroArch (.srm)**.
@@ -175,6 +186,12 @@ Parts of a save the game has never written read as blank (`0xFF`) bytes, and a f
 **Which version of Radical Red?**
 Radical Red **4.1**. It is built from 4.1's own data and tested on real 4.1 saves.
 
+**Which version of SoulGold?**
+The SoulGold that saves its PC in the current layout (19 boxes, the "BX19" format), which is what new SoulGold games use. RadicalHex is built from SoulGold's source as of October 2026. If you open an older SoulGold save, RadicalHex asks you to load it in the game and save once, which updates it to the current layout. If a newer SoulGold adds things RadicalHex doesn't know, it warns you before you edit, just like for Radical Red.
+
+**Is SoulGold the DS game?**
+No. This is the SoulGold **ROM hack for the GBA** by Eemeliri ([GitHub](https://github.com/Eemeliri/soulgold), [HackDex](https://www.hackdex.app/hack/soulgold)), a Johto adventure built on pokeemerald-expansion. Saves from the Nintendo DS games HeartGold and SoulSilver are a different format and won't open.
+
 **What about Radical Red 5.0?**
 When a new version of Radical Red comes out, RadicalHex will need an update for its new Pokémon, moves, items and any save changes. Until then, if you open a save that has Pokémon, moves or items Radical Red 4.1 doesn't have, RadicalHex warns you before you edit it, so a newer save isn't damaged by accident. Updates reach you through the app's own updater.
 
@@ -186,14 +203,14 @@ It backs up your save every time and checks every save before writing it, but ed
 
 ## Reporting a problem
 
-If you find any issue, please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose) and pick **Bug report**, **Save problem**, **Wrong game data** or **Feature request**. Your original save is always in the `Backups` folder next to RadicalHex.exe, so attaching it is safe.
+If you find any issue, please report it on the [Issues page](https://github.com/jajaa17/RadicalHex/issues/new/choose) and pick **Bug report**, **Save problem**, **Wrong game data** or **Feature request**. Each form asks **which game the save is from (Radical Red or SoulGold)**. Please pick the right one, because the two games work completely differently. Your original save is always in the `Backups` folder next to RadicalHex.exe, so attaching it is safe.
 
 ## What it's built with
 
 - **[Electron](https://www.electronjs.org/)**, the same base used by apps like Discord and VS Code. Electron is an open-source project of the OpenJS Foundation (it was started by GitHub). It packs two things into one Windows app:
   - **Chromium**, the open-source browser engine behind Google Chrome, which draws the window
   - **Node.js**, which handles your files: opening and saving saves, and making backups
-- The app itself is plain **HTML, CSS and JavaScript**, with no frameworks or extra libraries. All the save reading, editing and checking is in `src/core.js`.
+- The app itself is plain **HTML, CSS and JavaScript**, with no frameworks or extra libraries. All the save reading, editing and checking is in `src/core.js` (Radical Red) and `src/sg-core.js` (SoulGold).
 - **[electron-builder](https://www.electron.build/)** turns it into the single `RadicalHex.exe`, and **GitHub Actions** builds it on Windows from this code for every release, so the .exe isn't built on anyone's own PC.
 - The data and asset tools in `tools/` use **Node.js**, **Python** (with Pillow for the item icons) and **ffmpeg** (for the cries).
 - The sounds are made by the app as they play, with the browser's Web Audio feature, so there are no sound files for them.
@@ -210,7 +227,8 @@ Requires Node.js 22.
 npm ci
 npm start          # run the app
 npm run check      # data and safety checks
-npm test -- path/to/your.sav [more.sav]   # full edit and round-trip tests against real saves
+npm test -- path/to/your.sav [more.sav]   # full edit and round-trip tests against real Radical Red saves
+npm run test:sg -- path/to/soulgold.srm   # the same for SoulGold saves
 npm run dist       # build dist/RadicalHex.exe
 ```
 
@@ -227,6 +245,19 @@ python3 tools/build-cries.py <sources>   # the cries (needs ffmpeg)
 
 The top of each script lists which repositories go in the `<sources>` folder.
 
+SoulGold's data, sprites and item icons come from one script that compiles SoulGold's own data tables with the ARM compiler the game is built with ([arm-none-eabi-gcc](https://github.com/xpack-dev-tools/arm-none-eabi-gcc-xpack)) and reads the numbers back, so they match the game exactly:
+
+```sh
+python3 tools/build-sg-data.py <soulgold repo> <path to arm-none-eabi-gcc>   # src/sg-data.js, src/sg-dex.js, src/assets/sg
+```
+
+To check SoulGold saves with the game's own save code (needs `pip install unicorn`):
+
+```sh
+tools/sg-gamecheck/build.sh <soulgold repo> <arm-none-eabi bin folder>
+python3 tools/sg-gamecheck/gamecheck.py [--resave] edited.srm
+```
+
 The screenshots in `docs` are made from a demo save with `npx electron tools/screenshots.js`.
 
 ## Credits
@@ -238,8 +269,9 @@ The screenshots in `docs` are made from a demo save with `npx electron tools/scr
 - [Complete Fire Red Upgrade](https://github.com/Skeli789/Complete-Fire-Red-Upgrade), the engine Radical Red is built on
 - Radical Red's own `Base_Stats.c` (from the history of [Ydarissep/Radical-Red-Pokedex](https://github.com/Ydarissep/Radical-Red-Pokedex)) for experience growth rates
 - [PokéAPI](https://github.com/PokeAPI/pokeapi) for national Pokédex numbers and gender ratios, [PokéAPI sprites](https://github.com/PokeAPI/sprites) for the Pokémon sprites, and [PokéAPI cries](https://github.com/PokeAPI/cries) for the cries
+- [SoulGold](https://github.com/Eemeliri/soulgold) by Eemeliri ([HackDex](https://www.hackdex.app/hack/soulgold)), whose source and docs RadicalHex's SoulGold data, sprites, item icons, locations and save layout come from, built on [pokeemerald-expansion](https://github.com/rh-hideout/pokeemerald-expansion) by the RHH team and on the [Pokémon HnS](https://github.com/PokemonHnS-Development/pokemonHnS) team's work (see SoulGold's own credits for everyone involved)
 - [RetroArch](https://www.retroarch.com/) by the libretro team and [mGBA](https://mgba.io/) by endrift, whose save formats the save converter works with
-- Pokémon Radical Red by soupercell and the Radical Red team
+- Pokémon Radical Red by soupercell and the Radical Red team, and Pokémon SoulGold by Eemeliri
 
 RadicalHex is a fan project and is not affiliated with Nintendo, Creatures Inc., GAME FREAK inc. or The Pokémon Company. Pokémon names, sprites and cries are © their respective owners. Please do not use edited Pokémon against people who have not agreed to it.
 

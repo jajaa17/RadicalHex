@@ -16,6 +16,11 @@
     --good: #50c98d; --warn: #e6a640; --bad: #ff7f75; --star: #f4c542; --exp: #4fa3ff; color-scheme: dark;
   }
 }
+/* A SoulGold save swaps the crimson accent for gold, so it's always clear which game is open. */
+body.game-sg { --accent: #9c6a00; --accent-fg: #ffffff; --accent-soft: #f7ebcd; }
+@media (prefers-color-scheme: dark) {
+  body.game-sg { --accent: #f0bf45; --accent-fg: #1f1600; --accent-soft: #3a2d10; }
+}
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; }

@@ -121,7 +121,7 @@ const handle = (name, fn) => ipcMain.handle(name, async (_e, ...args) => {
 
 handle('open-save', async () => {
   const last = readSettings().lastDir;
-  const r = await dialog.showOpenDialog(win, { title: 'Open a Radical Red save', properties: ['openFile'], filters: SAVE_FILTERS,
+  const r = await dialog.showOpenDialog(win, { title: 'Open a Radical Red or SoulGold save', properties: ['openFile'], filters: SAVE_FILTERS,
     defaultPath: last && fs.existsSync(last) ? last : undefined }); // start in the folder of the last save
   return r.canceled ? null : readSave(r.filePaths[0]);
 });

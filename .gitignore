@@ -4,3 +4,4 @@ dist/
 *.srm
 *.radicalhex-tmp
 Backups/
+tools/sg-gamecheck/build/
