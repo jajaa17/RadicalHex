@@ -366,7 +366,11 @@
         m.buf[m.off + S + 10] &= ~(3 << (2 * i)); // no PP Ups for that slot
       }
     },
-    movePp: m => (m.party ? PP_BYTES.map(o => m.buf[m.off + o] & 0x7F) : null),
+    movePp: m => PP_BYTES.map(o => m.buf[m.off + o] & 0x7F), // SoulGold keeps PP in the box too, and a withdrawn Pokémon keeps it
+    // PP Ups (0-3) per move slot (ppBonuses), and current PP, which box Pokémon keep as well.
+    ppUps: m => [0, 1, 2, 3].map(i => (m.buf[m.off + S + 10] >> (2 * i)) & 3),
+    setPpUps(m, i, n) { const o = m.off + S + 10; m.buf[o] = (m.buf[o] & ~(3 << (2 * i))) | ((n & 3) << (2 * i)); },
+    setMovePp(m, i, v) { SB(m, PP_BYTES[i] * 8, 7, Math.max(0, Math.min(127, v | 0))); },
     // UI order HP Atk Def SpA SpD Spe. Stored EV order HP Atk Def Spe SpA SpD.
     evs(m) { const b = m.off + S + 24, d = m.buf; return [d[b], d[b + 1], d[b + 2], d[b + 4], d[b + 5], d[b + 3]]; },
     setEvs(m, v) { const b = m.off + S + 24, d = m.buf; d[b] = v[0]; d[b + 1] = v[1]; d[b + 2] = v[2]; d[b + 3] = v[5]; d[b + 4] = v[3]; d[b + 5] = v[4]; },
@@ -929,7 +933,7 @@
     partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, FRIENDS_WALLPAPER, wallpaper, setWallpaper, friendsWallpaper, setFriendsWallpaper, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
-    calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
+    maxPp, calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp),
     validSpecies, validItem, validMove, encodeText, decodeText,

@@ -326,6 +326,10 @@
       for (let i = 0; i < 4; i++) if (mv[i] !== old[i]) m.buf[m.off + 0x24] &= ~(3 << (2 * i));
     },
     movePp: m => (m.party ? [0, 1, 2, 3].map(i => m.buf[m.off + 0x34 + i]) : null),
+    // PP Ups (0-3) per move slot: party byte 0x28, box byte 0x24. Current PP is party-only (boxes refill it).
+    ppUps: m => { const b = m.buf[F(m, 0x28, 0x24)]; return [0, 1, 2, 3].map(i => (b >> (2 * i)) & 3); },
+    setPpUps(m, i, n) { const o = F(m, 0x28, 0x24); m.buf[o] = (m.buf[o] & ~(3 << (2 * i))) | ((n & 3) << (2 * i)); },
+    setMovePp(m, i, v) { if (m.party) m.buf[m.off + 0x34 + i] = Math.max(0, Math.min(255, v | 0)); },
     // UI order HP Atk Def SpA SpD Spe. Stored EV order HP Atk Def Spe SpA SpD.
     evs(m) { const b = F(m, 0x38, 0x2C), d = m.buf; return [d[b], d[b + 1], d[b + 2], d[b + 4], d[b + 5], d[b + 3]]; },
     setEvs(m, v) { const b = F(m, 0x38, 0x2C), d = m.buf; d[b] = v[0]; d[b + 1] = v[1]; d[b + 2] = v[2]; d[b + 3] = v[5]; d[b + 4] = v[3]; d[b + 5] = v[4]; },
@@ -949,7 +953,7 @@
     partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, wallpaper, setWallpaper, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
-    calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
+    maxPp, calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,

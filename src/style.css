@@ -139,6 +139,10 @@ h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
 .pick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .pick-caret { color: var(--muted); font-size: 11px; }
+.moves-edit { display: grid; grid-template-columns: minmax(0, 1fr) 64px 56px; gap: 6px 8px; align-items: center; }
+.moves-edit > .h { font-size: 12px; color: var(--muted); }
+.move-row { display: contents; }
+.move-row input[type=number], .move-row select { height: 34px; }
 .mtag { display: inline-flex; align-items: center; gap: 6px; flex: none; }
 .mtype { --type: #888; min-width: 58px; padding: 1px 6px; border-radius: 4px; background: var(--type); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: .04em; text-align: center; text-transform: uppercase; text-shadow: 0 1px 1px rgb(0 0 0 / .35); }
 .mcat { width: 38px; font-size: 11px; color: var(--muted); }

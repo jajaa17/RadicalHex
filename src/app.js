@@ -302,7 +302,7 @@
   const MAX_TIP = 'Ctrl+click to max it';
   document.addEventListener('click', e => {
     const t = e.target;
-    if (!(e.ctrlKey || e.metaKey) || !(t instanceof HTMLInputElement) || t.disabled || !/^((ed|add)-(level|fr|iv\d|ev\d)|bagq-.+|bag-add-qty|tr-(money|coins|bp|candy))$/.test(t.id)) return;
+    if (!(e.ctrlKey || e.metaKey) || !(t instanceof HTMLInputElement) || t.disabled || !/^((ed|add)-(level|fr|iv\d|ev\d)|ed-pp\d|bagq-.+|bag-add-qty|tr-(money|coins|bp|candy))$/.test(t.id)) return;
     e.preventDefault();
     if (t.value === t.max) return;
     t.value = t.max;
@@ -672,16 +672,40 @@
         h('span', { class: 'expbar' }, h('span', { style: `width:${pct}%` })))];
   }
 
+  // Each move with its PP and PP Ups (like PKHeX). A box Pokémon's PP is refilled when it is taken out, so only
+  // party Pokémon have PP to edit; PP Ups are kept in both.
   function movesTab(r) {
-    const mv = M.moves(r), pp = M.movePp(r), sp = M.species(r);
-    return [h('div', { class: 'form' }, mv.map((m, i) =>
-      field(`Move ${i + 1}${pp && m ? ` · PP ${pp[i]}/${D.pp[m] || '?'}` : ''}`, picker({ id: 'ed-move' + i, value: m, options: moveChoices(sp, mv, i, C.levelOf(D, r)), none: 'None', kind: 'moves',
+    const mv = M.moves(r), pp = M.movePp(r), ups = M.ppUps(r), sp = M.species(r);
+    const cap = G.key === 'sg' ? 127 : 255, maxOf = (m, u) => Math.min(cap, C.maxPp(D, m, u));
+    const setUps = (i, n) => edit(r, `Set ${D.moves[mv[i]]} to ${n} PP Up${n === 1 ? '' : 's'}`, () => {
+      const was = maxOf(mv[i], ups[i]), now = maxOf(mv[i], n);
+      M.setPpUps(r, i, n);
+      if (pp) M.setMovePp(r, i, pp[i] >= was ? now : Math.min(pp[i], now)); // full PP stays full, like a PP Up in the game
+    }, { full: true });
+    const rows = mv.map((m, i) => h('div', { class: 'move-row' },
+      picker({ id: 'ed-move' + i, value: m, options: moveChoices(sp, mv, i, C.levelOf(D, r)), none: 'None', kind: 'moves',
         bad: legal(r).some(p => p.field === 'move' + i && p.level === 'error') ? 'error' : legal(r).some(p => p.field === 'move' + i) ? 'warn' : false, onPick: id => {
-        const next = mv.slice(); next[i] = id;
-        if (!next.some(x => x)) { status('A Pokémon needs at least one move.', 'err'); return; }
-        edit(r, id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
-      } }), ' wide'))),
-    h('p', { class: 'note' }, moveNote(sp) + ' Changing a move refills its PP and removes PP Ups for that slot.')];
+          const next = mv.slice(); next[i] = id;
+          if (!next.some(x => x)) { status('A Pokémon needs at least one move.', 'err'); return; }
+          edit(r, id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
+        } }),
+      h('input', { id: 'ed-pp' + i, type: 'number', 'aria-label': `Move ${i + 1} PP`, min: 0, max: m ? (hax ? cap : maxOf(m, ups[i])) : 0,
+        value: m ? (pp ? pp[i] : maxOf(m, ups[i])) : '', disabled: !m || !pp, title: !m ? '' : pp ? `${MAX_TIP} (${maxOf(m, ups[i])})` : 'Box Pokémon get full PP when they are taken out', onchange: e => {
+          const v = Math.max(0, Math.min(+e.target.max, Math.round(+e.target.value) || 0)); e.target.value = v;
+          edit(r, `Set ${D.moves[m]} PP to ${v}`, () => M.setMovePp(r, i, v), { full: true });
+        } }),
+      h('select', { id: 'ed-ups' + i, 'aria-label': `Move ${i + 1} PP Ups`, disabled: !m, title: m ? `PP Ups used (max PP ${maxOf(m, ups[i])} of ${maxOf(m, 3)})` : '', onchange: e => setUps(i, +e.target.value) },
+        [0, 1, 2, 3].map(n => h('option', { value: n, selected: m && n === ups[i] }, String(n))))));
+    const full = mv.every((m, i) => !m || (ups[i] === 3 && (!pp || pp[i] >= maxOf(m, 3))));
+    return [h('div', { class: 'moves-edit' }, h('span', { class: 'h' }, 'Move'), h('span', { class: 'h' }, 'PP'), h('span', { class: 'h' }, 'Ups'), rows),
+      h('div', { class: 'row' },
+        h('button', { id: 'ed-ppmax', class: 'btn small', type: 'button', disabled: full, title: 'Use 3 PP Ups on every move (like a PP Max) and fill its PP', onclick: () => edit(r, 'Maxed PP Ups', () => {
+          mv.forEach((m, i) => { if (m) { M.setPpUps(r, i, 3); if (pp) M.setMovePp(r, i, maxOf(m, 3)); } });
+        }, { full: true }) }, 'Max PP Ups'),
+        pp ? h('button', { id: 'ed-pprestore', class: 'btn small', type: 'button', disabled: mv.every((m, i) => !m || pp[i] >= maxOf(m, ups[i])), title: 'Refill every move\'s PP', onclick: () => edit(r, 'Restored PP', () => {
+          mv.forEach((m, i) => { if (m) M.setMovePp(r, i, maxOf(m, ups[i])); });
+        }, { full: true }) }, 'Restore PP') : null),
+      h('p', { class: 'note' }, moveNote(sp) + ' Changing a move refills its PP and removes PP Ups for that slot.' + (pp ? '' : ' Box Pokémon get full PP when they are taken out, so only PP Ups are kept here.'))];
   }
 
   // A new species keeps the level (on the new growth curve), and a nickname that was the species name follows it.
