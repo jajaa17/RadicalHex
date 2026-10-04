@@ -940,15 +940,17 @@
         } })),
         h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Filled the Candy Jar', () => C.setCandyJar(sv, C.CANDY_JAR_MAX)) }, 'Max'),
           h('button', { class: 'btn small', type: 'button', onclick: () => change('Emptied the Candy Jar', () => C.setCandyJar(sv, 0)) }, 'Empty')),
-        h('p', { class: 'note' }, candies.length ? `Using it in the bag now makes about ${candies.join(', ')} (if your bag has room).` : 'It keeps 90% of the EXP from battles. Using it in the bag turns the EXP into Exp. Candies (L 10,000, M 3,000, S 800, XS 100 EXP).'),
-        has ? null : h('p', { class: 'note' }, 'You don\'t have the Candy Jar yet (you get it in the story, after the first Gym). The EXP is kept until you do.'));
+        h('p', { class: 'note' }, candies.length ? `Using it in the bag now makes about ${candies.join(', ')} (if your bag has room).` : 'It keeps 90% of battle EXP and turns it into Exp. Candies when used.'),
+        has ? null : h('p', { class: 'note' }, 'You don\'t have the Candy Jar yet (it comes after the first Gym). The EXP is kept until then.'));
     }
     put($('#pane-trainer'),
       h('div', { class: 'cards' },
-        h('div', { class: 'card' }, h('h3', {}, 'Trainer'),
-          h('dl', { class: 'kv' }, h('dt', {}, 'Name'), h('dd', {}, t.name), h('dt', {}, 'Gender'), h('dd', {}, t.gender ? 'Girl' : 'Boy'),
-            h('dt', {}, 'Trainer ID'), h('dd', {}, String(t.tid).padStart(5, '0')), h('dt', {}, 'Secret ID'), h('dd', {}, String(t.sid).padStart(5, '0')),
-            ...(C.modes ? [h('dt', {}, 'Minimal Grinding'), h('dd', {}, minGrind() ? 'On (IVs are always 31, no EVs)' : 'Off')] : []))),
+        h('div', { class: 'card-stack' },
+          h('div', { class: 'card' }, h('h3', {}, 'Trainer'),
+            h('dl', { class: 'kv' }, h('dt', {}, 'Name'), h('dd', {}, t.name), h('dt', {}, 'Gender'), h('dd', {}, t.gender ? 'Girl' : 'Boy'),
+              h('dt', {}, 'Trainer ID'), h('dd', {}, String(t.tid).padStart(5, '0')), h('dt', {}, 'Secret ID'), h('dd', {}, String(t.sid).padStart(5, '0')),
+              ...(C.modes ? [h('dt', {}, 'Minimal Grinding'), h('dd', {}, minGrind() ? 'On (IVs are always 31, no EVs)' : 'Off')] : []))),
+          C.candyJar ? candyJarCard() : null),
         h('div', { class: 'card' }, h('h3', {}, 'Money'),
           field(`Money (max ₽${C.MONEY_MAX.toLocaleString()})`, h('input', { id: 'tr-money', type: 'number', min: 0, max: C.MONEY_MAX, value: Math.min(t.money, C.MONEY_MAX), onchange: e => {
             const v = Math.max(0, Math.min(C.MONEY_MAX, Math.round(+e.target.value) || 0)); change(`Set money to ₽${v.toLocaleString()}`, () => C.setMoney(sv, v));
@@ -956,15 +958,13 @@
           field(`Game Corner coins (max ${C.COINS_MAX.toLocaleString()})`, h('input', { id: 'tr-coins', type: 'number', min: 0, max: C.COINS_MAX, value: Math.min(t.coins, C.COINS_MAX), onchange: e => {
             const v = Math.max(0, Math.min(C.COINS_MAX, Math.round(+e.target.value) || 0)); change(`Set coins to ${v}`, () => C.setCoins(sv, v));
           } })),
-          h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Set money to the maximum', () => C.setMoney(sv, C.MONEY_MAX)) }, 'Max money'),
-            h('button', { class: 'btn small', type: 'button', onclick: () => change('Set coins to the maximum', () => C.setCoins(sv, C.COINS_MAX)) }, 'Max coins')),
           C.bp ? field(`Battle Points (max ${C.BP_MAX.toLocaleString()})`, h('input', { id: 'tr-bp', type: 'number', min: 0, max: C.BP_MAX, value: Math.min(C.bp(sv), C.BP_MAX), onchange: e => {
             const v = Math.max(0, Math.min(C.BP_MAX, Math.round(+e.target.value) || 0)); e.target.value = v; change(`Set Battle Points to ${v.toLocaleString()}`, () => C.setBp(sv, v));
           } })) : null,
-          C.bp ? h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Set Battle Points to the maximum', () => C.setBp(sv, C.BP_MAX)) }, 'Max BP')) : null,
-          G.key === 'sg' ? h('p', { class: 'note' }, 'Coins are what the Game Corner games use (slots, blackjack, gacha, the derby and the rest). The Rocket Arcade pays out money, and Battle Points buy items at the BP shop.') : null,
+          h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Set money to the maximum', () => C.setMoney(sv, C.MONEY_MAX)) }, 'Max money'),
+            h('button', { class: 'btn small', type: 'button', onclick: () => change('Set coins to the maximum', () => C.setCoins(sv, C.COINS_MAX)) }, 'Max coins'),
+            C.bp ? h('button', { class: 'btn small', type: 'button', onclick: () => change('Set Battle Points to the maximum', () => C.setBp(sv, C.BP_MAX)) }, 'Max BP') : null),
           t.money > C.MONEY_MAX ? h('p', { class: 'note' }, `This save currently has ₽${t.money.toLocaleString()}. It is left as is unless you change it.`) : null),
-        C.candyJar ? candyJarCard() : null,
         h('div', { class: 'card' }, h('h3', {}, 'Pokédex'),
           h('dl', { class: 'kv' }, h('dt', {}, 'Seen'), h('dd', {}, String(dx.seen)), h('dt', {}, 'Caught'), h('dd', {}, String(dx.caught))),
           h('button', { class: 'btn small', type: 'button', style: 'justify-self:start', onclick: () => change('Registered every Pokémon you own in the Pokédex', () => {
@@ -974,7 +974,8 @@
             for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) reg(C.boxRef(sv, b, s));
             return n > 0;
           }) }, 'Register everything you own'),
-          h('p', { class: 'note' }, 'When you save, every Pokémon in the file is registered as caught, like in the game. Something you add and then remove before saving is not.'))),
+          h('p', { class: 'note' }, 'When you save, every Pokémon in the file is registered as caught, like in the game. Something you add and then remove before saving is not.')),
+      ),
       h('div', { class: 'section-title' }, 'Bag'),
       h('div', { class: 'pockets' }, C.POCKETS.map(x => h('button', { class: 'pocket', type: 'button', 'aria-pressed': String(x.key === pocket), onclick: () => { pocket = x.key; renderTrainer(); } },
         `${x.name} ${C.readPocket(sv, x).length}/${x.cap}`))),
