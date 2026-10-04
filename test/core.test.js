@@ -26,6 +26,30 @@ for (const file of process.argv.slice(2)) {
     assert.throws(() => C.load(worse), 'both saves damaged: refused');
   });
 
+  t('Minimal Grinding mode is read from the save and kept by edits', () => {
+    const sv = fresh(), on = C.modes(sv).minGrind;
+    assert.strictEqual(typeof on, 'boolean');
+    C.setMoney(sv, 1234);
+    assert.strictEqual(C.modes(C.load(C.build(sv, D))).minGrind, on);
+    // The flags sit in section 4's unused tail (outside its checksum): either one turns the mode on.
+    for (const id of [0x1032, 0x1040]) {
+      const b = bytes.slice(), o = sv.sec[4] + C.WIN[4] + ((id - 0x900) >> 3) - 0xCC;
+      b[o] |= 1 << (id & 7);
+      assert.strictEqual(C.modes(C.load(b)).minGrind, true, id.toString(16));
+      b[o] &= ~(1 << (id & 7));
+    }
+    const off = bytes.slice();
+    for (const id of [0x1032, 0x1040]) off[sv.sec[4] + C.WIN[4] + ((id - 0x900) >> 3) - 0xCC] &= ~(1 << (id & 7));
+    assert.strictEqual(C.modes(C.load(off)).minGrind, false);
+  });
+
+  t('a first save the emulator wrote mid-save (a blank section) is refused with a clear reason', () => {
+    const sv = fresh(), b = bytes.slice(), live = Math.floor(sv.sec[0] / 0xE000);
+    b.fill(0xFF, (1 - live) * 0xE000, (2 - live) * 0xE000); // no older save, like a new game's first save
+    b.fill(0, sv.sec[0], sv.sec[0] + 0x1000); // section 0 not written yet
+    assert.throws(() => C.load(b), /partly written/);
+  });
+
   t('levels match stored party levels', () => {
     const sv = fresh();
     for (let i = 0; i < C.partyCount(sv); i++) { const m = C.partyRef(sv, i); assert.strictEqual(M.level(m), (() => { const g = C.growth(D, M.species(m)); let L = 1; while (L < 100 && g[L + 1] <= M.exp(m)) L++; return L; })()); }

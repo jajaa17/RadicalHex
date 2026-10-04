@@ -95,19 +95,22 @@
     // file while the game is saving), are ignored, as the game ignores them.
     const slots = [0, 1].map(k => {
       const sec = Array(14).fill(-1), idx = Array(14).fill(0);
-      let counter = 0, signed = false;
+      let counter = 0, signed = false, bad = 0;
       for (let i = 0; i < 14; i++) {
         const o = (k * 14 + i) * 0x1000;
         if (((u32(data, o + 0xFF8) & 0xFFFFFF00) >>> 0) !== 0x08012000) continue;
         signed = true;
         const id = u16(data, o + 0xFF4);
-        if (id >= 14 || checksum(data, o, WIN[id]) !== u16(data, o + 0xFF6)) continue;
+        if (id >= 14 || checksum(data, o, WIN[id]) !== u16(data, o + 0xFF6)) { bad++; continue; }
         sec[id] = o; idx[id] = counter = u32(data, o + 0xFFC); // a later copy of a section replaces an earlier one, as in the game
       }
-      return { sec, idx, counter, signed, ok: sec.every(o => o >= 0) };
+      return { sec, idx, counter, signed, bad, ok: sec.every(o => o >= 0) };
     });
     const [a, b] = slots;
     if (!a.signed && !b.signed) throw new Error('This is not a Radical Red save: some save sections are missing. Use the .sav/.srm battery save, not a save state.');
+    // A slot with good sections and only blank ones besides: the emulator wrote the file in the middle of the game's save.
+    const partial = s => !s.bad && s.sec.filter(o => o >= 0).length >= 7;
+    if (!a.ok && !b.ok && (partial(a) || partial(b))) throw new Error('This save was only partly written (some of its sections are blank or from an unfinished save), so RadicalHex will not edit it. The emulator probably wrote the file while the game was still saving: close the game in the emulator (or quit it) so it writes the whole save, then open the file again.');
     if (!a.ok && !b.ok) throw new Error('This is not a Radical Red 4.1 save: the section checksums do not match (vanilla FireRed, another hack, or a damaged file).');
     const newer = (x, y) => ((x === 0xFFFFFFFF && y === 0) || (x === 0 && y === 0xFFFFFFFF)) ? (x + 1) >>> 0 > (y + 1) >>> 0 : x > y;
     const use = !b.ok ? a : !a.ok ? b : newer(b.counter, a.counter) ? b : a;
@@ -134,6 +137,19 @@
     for (let i = 0; i < EXT_SIZE; i++) ext[i] = data[extFile(sec, i)];
     return { data, sec, stream, raw, ext, saveIndex: idx[0], newerDamaged, original: new Uint8Array(input) };
   }
+
+  // CFRU's expanded flags (0x900-0x18FF) live in the unused tails of sections 0 and 4 (its "save block parasite":
+  // 0xCC bytes after section 0's data, then 0x258 after section 4's). Radical Red keeps its game modes there.
+  function flag(sv, id) {
+    const i = (id - 0x900) >> 3;
+    if (id < 0x900 || i >= 0xCC + 0x258) return false;
+    const o = i < 0xCC ? sv.sec[0] + WIN[0] + i : sv.sec[4] + WIN[4] + (i - 0xCC);
+    return ((sv.data[o] >> (id & 7)) & 1) === 1;
+  }
+  // Minimal Grinding mode (every IV 31, no EVs) sets flags 0x1032 and 0x1040 when the game starts; a Normal game
+  // started the same way has neither (found by comparing two fresh saves, one with the mode on and one with it off).
+  const MIN_GRIND_FLAGS = [0x1032, 0x1040];
+  const modes = sv => ({ minGrind: MIN_GRIND_FLAGS.some(id => flag(sv, id)) });
 
   // Builds the output file. Only the live save slot is written; the older slot stays as the game's own fallback.
   function serialize(sv) {
@@ -897,7 +913,7 @@
 
   const api = {
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
-    load, serialize, build, checksum, allowedRanges,
+    load, serialize, build, checksum, allowedRanges, flag, modes,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,

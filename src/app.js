@@ -39,7 +39,18 @@
   // RadicalHaX mode: no legality checks, and illegal options (battle-only forms) unlocked. Save safety checks always stay on.
   let hax = false;
   try { hax = localStorage.getItem('radicalhex-hax') === '1'; } catch { /* default off */ }
-  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, X, r));
+  // Radical Red's Minimal Grinding mode: the game keeps every IV at 31 and gives no EVs.
+  const minGrind = () => !!(sv && C.modes && C.modes(sv).minGrind);
+  const ivEvLocked = () => minGrind() && !hax;
+  const MG_NOTE = 'Minimal Grinding mode is on in this save: the game keeps every IV at 31 and gives no EVs, so IVs and EVs are locked. Turn on RadicalHaX mode to edit them anyway.';
+  const mgIssues = r => {
+    if (!minGrind() || M.isEgg(r)) return [];
+    const out = [];
+    if (M.ivs(r).some(v => v !== 31)) out.push({ level: 'warn', text: 'This save uses Minimal Grinding mode, where every IV is 31, but this Pokémon has lower IVs.', field: 'ivs' });
+    if (M.evs(r).some(v => v)) out.push({ level: 'warn', text: 'This save uses Minimal Grinding mode, where Pokémon get no EVs, but this one has EVs.', field: 'evs' });
+    return out;
+  };
+  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, X, r).concat(mgIssues(r)));
   const illegal = r => legal(r).some(p => p.level === 'error');
 
   // ── Names ──
@@ -590,7 +601,7 @@
   const evCap = (evs, i) => (hax ? 255 : Math.max(0, Math.min(C.EV_CAP, C.EV_TOTAL - evs.reduce((a, b, k) => (k === i ? a : a + b), 0))));
   const evCapNote = (i, v) => `${C.STATS[i]} EV is ${v}, the most it can have: ${C.EV_CAP} per stat and ${C.EV_TOTAL} in total. RadicalHaX mode allows more.`;
   // onEv(i, value, capped): capped is true when the typed number was lowered to the limit.
-  function statsGrid(ivs, evs, nature, onIv, onEv, values, idp) {
+  function statsGrid(ivs, evs, nature, onIv, onEv, values, idp, locked = false) {
     // Nature indexes Atk/Def/Spe/SpA/SpD; grid rows are HP/Atk/Def/SpA/SpD/Spe.
     const up = Math.floor(nature / 5), down = nature % 5, rowOf = k => [1, 2, 5, 3, 4][k];
     const mark = i => (up === down ? '' : i === rowOf(up) ? ' up' : i === rowOf(down) ? ' down' : '');
@@ -598,7 +609,7 @@
     const cur = evs.slice(), evInputs = [];
     C.STATS.forEach((s, i) => {
       // max stops the arrows at the limit; a bigger typed number is lowered to it.
-      const ev = h('input', { id: `${idp}-ev${i}`, type: 'number', min: 0, max: evCap(cur, i), value: evs[i], 'aria-label': s + ' EV', onchange: e => {
+      const ev = h('input', { id: `${idp}-ev${i}`, type: 'number', disabled: locked, min: 0, max: evCap(cur, i), value: evs[i], 'aria-label': s + ' EV', onchange: e => {
         const want = Math.max(0, Math.round(+e.target.value) || 0), v = Math.min(want, evCap(cur, i));
         e.target.value = v; cur[i] = v;
         evInputs.forEach((x, k) => { x.max = evCap(cur, k); });
@@ -607,7 +618,7 @@
       evInputs.push(ev);
       g.append(
         h('span', { class: 'name' + mark(i), title: mark(i) === ' up' ? 'Raised by nature' : mark(i) === ' down' ? 'Lowered by nature' : '' }, s),
-        h('input', { id: `${idp}-iv${i}`, type: 'number', min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => {
+        h('input', { id: `${idp}-iv${i}`, type: 'number', disabled: locked, min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => {
           const v = Math.max(0, Math.min(31, Math.round(+e.target.value) || 0)); e.target.value = v; onIv(i, v);
         } }),
         ev,
@@ -621,8 +632,10 @@
       statsGrid(ivs, evs, M.nature(r),
         (i, v) => { const x = M.ivs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} IV to ${v}`, () => M.setIvs(r, x), { full: true }); },
         (i, v, capped) => { const x = M.evs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} EV to ${v}`, () => M.setEvs(r, x), { full: true }); if (capped) status(evCapNote(i, v)); },
-        M.partyStats(r), 'ed'),
-      h('div', { class: 'row' },
+        M.partyStats(r), 'ed', ivEvLocked()),
+      ivEvLocked() ? h('div', { class: 'row' }, h('span', { class: 'note grow' }, MG_NOTE),
+        mgIssues(r).length ? h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Set IVs to 31 and cleared EVs', () => { M.setIvs(r, [31, 31, 31, 31, 31, 31]); M.setEvs(r, [0, 0, 0, 0, 0, 0]); }, { full: true }) }, 'Set IVs to 31, clear EVs') : null)
+      : h('div', { class: 'row' },
         h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Set perfect IVs', () => M.setIvs(r, [31, 31, 31, 31, 31, 31]), { full: true }) }, 'Max IVs'),
         h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Cleared EVs', () => M.setEvs(r, [0, 0, 0, 0, 0, 0]), { full: true }) }, 'Clear EVs'),
         h('span', { class: 'grow' }),
@@ -787,6 +800,7 @@
     ability: 0, metLocation: G.defaultMet, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
   function addForm() {
     if (!draft) draft = newDraft();
+    if (ivEvLocked()) { draft.ivs = [31, 31, 31, 31, 31, 31]; draft.evs = [0, 0, 0, 0, 0, 0]; }
     const d = draft, ratio = d.species ? C.genderRatio(D, d.species) : 127, fixed = ratio === 0 || ratio >= 254;
     const rerender = () => queueEditor();
     const pickBad = (e, msg) => { e.target.classList.add('bad'); status(msg, 'err'); };
@@ -810,6 +824,10 @@
                 if (!opts.moves.some(x => x)) opts.moves = startMoves(opts.species, opts.level);
                 const ev = C.clampEvs(opts.evs);
                 if (ev.join() !== opts.evs.join()) { warnings.push(`EVs were lowered to the game's limits (${C.EV_CAP} per stat, ${C.EV_TOTAL} in total).`); opts.evs = ev; }
+              }
+              if (ivEvLocked()) {
+                if (opts.ivs.some(v => v !== 31) || opts.evs.some(v => v)) warnings.push('Minimal Grinding mode is on, so its IVs were set to 31 and its EVs to 0 (RadicalHaX mode keeps them).');
+                opts.ivs = [31, 31, 31, 31, 31, 31]; opts.evs = [0, 0, 0, 0, 0, 0];
               }
               Object.assign(d, opts, { text: sd.value });
               status(warnings.length ? 'Set loaded. ' + warnings.join(' ') : 'Set loaded. Check it and press Add.', warnings.length ? '' : 'ok');
@@ -845,7 +863,8 @@
         ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: d.species ? moveChoices(d.species, d.moves, i, d.level) : [], none: d.species ? 'None' : null, kind: 'moves',
           disabled: !d.species, placeholder: 'Choose a species first', onPick: id => { d.moves[i] = id; rerender(); } }))),
         d.species ? h('p', { class: 'note', style: 'grid-column:1 / -1' }, moveNote(d.species)) : null),
-      statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add'),
+      statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add', ivEvLocked()),
+      ivEvLocked() ? h('p', { class: 'note' }, MG_NOTE) : null,
       h('div', { class: 'row', style: 'border-top:1px solid var(--line);padding-top:12px' },
         h('button', { class: 'btn primary', type: 'button', onclick: create }, sel.party ? 'Add to party' : 'Add to box'),
         h('button', { class: 'btn', type: 'button', onclick: () => { draft = newDraft(); rerender(); } }, 'Clear form'))];
@@ -928,7 +947,8 @@
       h('div', { class: 'cards' },
         h('div', { class: 'card' }, h('h3', {}, 'Trainer'),
           h('dl', { class: 'kv' }, h('dt', {}, 'Name'), h('dd', {}, t.name), h('dt', {}, 'Gender'), h('dd', {}, t.gender ? 'Girl' : 'Boy'),
-            h('dt', {}, 'Trainer ID'), h('dd', {}, String(t.tid).padStart(5, '0')), h('dt', {}, 'Secret ID'), h('dd', {}, String(t.sid).padStart(5, '0')))),
+            h('dt', {}, 'Trainer ID'), h('dd', {}, String(t.tid).padStart(5, '0')), h('dt', {}, 'Secret ID'), h('dd', {}, String(t.sid).padStart(5, '0')),
+            ...(C.modes ? [h('dt', {}, 'Minimal Grinding'), h('dd', {}, minGrind() ? 'On (IVs are always 31, no EVs)' : 'Off')] : []))),
         h('div', { class: 'card' }, h('h3', {}, 'Money'),
           field(`Money (max ₽${C.MONEY_MAX.toLocaleString()})`, h('input', { id: 'tr-money', type: 'number', min: 0, max: C.MONEY_MAX, value: Math.min(t.money, C.MONEY_MAX), onchange: e => {
             const v = Math.max(0, Math.min(C.MONEY_MAX, Math.round(+e.target.value) || 0)); change(`Set money to ₽${v.toLocaleString()}`, () => C.setMoney(sv, v));
@@ -1081,7 +1101,7 @@
     if (host) host.setDirty(false).catch(() => {});
     renderAll();
     if (unknownCount) { status(`Opened ${name}, which has ${unknownCount} thing${unknownCount === 1 ? '' : 's'} ${G.full} doesn't have. Edit with care.`, 'err'); return; }
-    status(`Opened ${name}${G.key === 'sg' ? ' (SoulGold)' : ''}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
+    status(`Opened ${name}${G.key === 'sg' ? ' (SoulGold)' : minGrind() ? ' (Minimal Grinding mode: IVs and EVs are locked unless RadicalHaX is on)' : ''}.${host ? ` A backup was saved in ${backupWhere || 'the Backups folder next to RadicalHex.exe'}.` : ''}`, 'ok');
     S.play('ok');
   }
   async function open() {
