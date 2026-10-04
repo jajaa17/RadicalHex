@@ -27,6 +27,7 @@ const struct SpeciesInfo B_isGmax = {.isGigantamax = 1};
 const struct SpeciesInfo B_isUB = {.isUltraBurst = 1};
 const struct SpeciesInfo B_isTera = {.isTeraForm = 1};
 const struct SpeciesInfo B_isTotem = {.isTotem = 1};
+const struct MoveInfo B_mvCat = {.category = 3};
 const struct ItemInfo B_pocket = {.pocket = 31};
 const struct ItemInfo B_importance = {.importance = 3};
 const struct MoveInfo B_type = {.type = 31};

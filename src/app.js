@@ -103,19 +103,35 @@
   // value: current id (0 = none). none: label for the empty choice, or null when an empty choice is not allowed.
   // icon: optional (id, size) => element, shown next to each choice (species sprites, item icons).
   // bad: 'error' (red) or 'warn' (amber) outline; true means 'error'.
+  // Move type and category (physical / special / status), from the game's own move data.
+  const CATS = ['Physical', 'Special', 'Status'];
+  let typeMap = null, typeMapFor = null;
+  const moveType = id => {
+    if (typeMapFor !== X) { typeMap = new Map((X.types || []).map(t => [t.id, t])); typeMapFor = X; }
+    return (X.mt && typeMap.get(X.mt[id])) || null;
+  };
+  const moveInfo = id => { const t = moveType(id), c = X.ms ? CATS[X.ms[id]] : null; return [t ? t.n : '', c || ''].filter(Boolean).join(' · '); };
+  function moveTag(id) {
+    const t = moveType(id), c = X.ms ? CATS[X.ms[id]] : null;
+    if (!id || (!t && !c)) return null;
+    return h('span', { class: 'mtag', title: moveInfo(id) },
+      t ? h('span', { class: 'mtype', style: `--type:${t.c}` }, t.n) : null,
+      c ? h('span', { class: 'mcat' }, c === 'Status' ? 'Status' : c.slice(0, 4) + '.') : null);
+  }
   function picker({ id, value, options, none = null, placeholder = 'Choose…', icon = null, kind, onPick, bad = false, disabled = false }) {
     if (!icon && kind === 'items') icon = itemIcon;
     const btn = h('button', { id, type: 'button', class: 'pick' + (bad === 'warn' ? ' warnb' : bad ? ' bad' : ''), 'aria-haspopup': 'listbox', disabled },
       icon && value ? icon(value, 24) : null,
       h('span', { class: 'pick-label' + (value ? '' : ' muted') }, value ? nameIn(kind, value) : none || placeholder),
+      kind === 'moves' && value ? moveTag(value) : null,
       value ? h('span', { class: 'pick-id' }, '#' + value) : null,
       h('span', { class: 'pick-caret', 'aria-hidden': 'true' }, '▾'));
-    btn.addEventListener('click', () => openList(btn, value, none ? [{ id: 0, label: none }, ...options] : options, icon, onPick));
+    btn.addEventListener('click', () => openList(btn, value, none ? [{ id: 0, label: none }, ...options] : options, icon, onPick, kind === 'moves' ? moveTag : null));
     return btn;
   }
   let pop = null;
   const closeList = () => { if (pop) { pop.remove(); pop = null; } };
-  function openList(btn, value, all, icon, onPick) {
+  function openList(btn, value, all, icon, onPick, tag = null) {
     closeList();
     const search = h('input', { type: 'text', class: 'pop-search', placeholder: 'Scroll the list, or type to filter', 'aria-label': 'Filter the list', autocomplete: 'off' });
     const list = h('div', { class: 'pop-list', role: 'listbox' });
@@ -124,7 +140,7 @@
     const draw = () => list.replaceChildren(...shown.map((o, k) => {
       const row = h('div', { class: 'pop-row' + (o.id === value ? ' cur' : '') + (k === active ? ' act' : ''), role: 'option', 'aria-selected': String(o.id === value) },
         icon ? (o.id && icon(o.id, icon === itemIcon ? 24 : 32)) || h('span', { style: `width:${icon === itemIcon ? 24 : 32}px;flex:none` }) : null,
-        h('span', { class: 'grow' }, o.label), o.id ? h('span', { class: 'pick-id' }, '#' + o.id) : null);
+        h('span', { class: 'grow' }, o.label), tag && o.id ? tag(o.id) : null, o.id ? h('span', { class: 'pick-id' }, '#' + o.id) : null);
       row.addEventListener('mousedown', e => { e.preventDefault(); choose(o); });
       return row;
     }));
@@ -255,6 +271,28 @@
   }
 
   // ── Selection ──
+  // Ctrl+click (like PKHeX) on level, friendship, an IV or an EV sets it to the most it can be.
+  const MAX_TIP = 'Ctrl+click to max it';
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (!(e.ctrlKey || e.metaKey) || !(t instanceof HTMLInputElement) || t.disabled || !/^(ed|add)-(level|fr|iv\d|ev\d)$/.test(t.id)) return;
+    e.preventDefault();
+    if (t.value === t.max) return;
+    t.value = t.max;
+    t.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  // Ctrl+click on an empty slot copies the selected Pokémon there (quick duplicate). Returns true when it handled the click.
+  function quickCopy(e, party, b, s) {
+    const src = sv && selRef();
+    if (!(e.ctrlKey || e.metaKey) || !filled(src)) return false;
+    const name = M.nickname(src) || spName(M.species(src));
+    if (party) {
+      let i = -1;
+      if (C.partyCount(sv) >= 6) status('Your party is full (6 Pokémon).', 'err');
+      else if (change(`Copied ${name} to the party`, () => { i = C.copyToParty(sv, D, X, src); }, { full: true, sfx: 'ball' })) select(true, 0, i);
+    } else if (change(`Copied ${name} to ${C.boxName(sv, b)} slot ${s + 1}`, () => C.copyToBox(D, src, C.boxRef(sv, b, s)), { full: true, sfx: 'ball' })) select(false, b, s);
+    return true;
+  }
   const selRef = () => (sel.party ? (sel.slot < C.partyCount(sv) ? C.partyRef(sv, sel.slot) : null) : C.boxRef(sv, sel.box, sel.slot));
   const filled = r => r && !M.empty(r);
   function select(party, b, slot) {
@@ -285,7 +323,7 @@
   function boxCount(b) { let n = 0; for (let s = 0; s < C.SLOTS; s++) if (filled(C.boxRef(sv, b, s))) n++; return n; }
   function slotButton(ref, party, b, s, size) {
     const isSel = sel.party === party && sel.slot === s && (party || sel.box === b);
-    const el = h('button', { class: 'slot' + (filled(ref) ? '' : ' empty') + (isSel ? ' sel' : ''), type: 'button', onclick: () => select(party, b, s) });
+    const el = h('button', { class: 'slot' + (filled(ref) ? '' : ' empty') + (isSel ? ' sel' : ''), type: 'button', onclick: e => { if (filled(ref) || !quickCopy(e, party, b, s)) select(party, b, s); } });
     if (filled(ref)) {
       const sp = M.species(ref), lv = C.levelOf(D, ref), iv = M.ivs(ref);
       el.title = `${M.nickname(ref)} — ${spName(sp)}${lv ? ', Lv ' + lv : ''}`;
@@ -387,7 +425,7 @@
     for (let s = 0; s < 6; s++) {
       const r = s < n ? C.partyRef(sv, s) : null;
       if (!filled(r)) {
-        const card = h('button', { type: 'button', class: 'pcard empty' + (sel.party && sel.slot === s ? ' sel' : ''), title: 'Add a Pokémon to your party', onclick: () => select(true, 0, s) },
+        const card = h('button', { type: 'button', class: 'pcard empty' + (sel.party && sel.slot === s ? ' sel' : ''), title: 'Add a Pokémon to your party (Ctrl+click: copy the selected Pokémon here)', onclick: e => { if (!quickCopy(e, true, 0, s)) select(true, 0, s); } },
           h('span', { class: 'muted' }, '＋ Add a Pokémon'));
         dropTarget(card, { party: true, box: 0, slot: s });
         cards.push(card);
@@ -404,7 +442,7 @@
           h('span', { class: 'note' }, `${spName(sp)} · ${C.NATURES[M.nature(r)]}`),
           h('span', { class: 'note held-line' }, itemIcon(M.item(r)), M.item(r) ? 'Holding ' + (D.items[M.item(r)] || '#' + M.item(r)) : 'No held item'),
           h('span', { class: 'hpbar', title: `HP ${hp}/${st[0]}` }, h('span', { class: pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low', style: `width:${pct}%` })),
-          h('span', { class: 'pcard-moves' }, M.moves(r).map(m => h('span', {}, m ? D.moves[m] || '#' + m : '—')))));
+          h('span', { class: 'pcard-moves' }, M.moves(r).map(m => h('span', { title: m ? moveInfo(m) : '' }, m && moveType(m) ? h('i', { class: 'mdot', style: `--type:${moveType(m).c}` }) : null, m ? D.moves[m] || '#' + m : '—')))));
       dragSource(card, { party: true, box: 0, slot: s });
       dropTarget(card, { party: true, box: 0, slot: s });
       cards.push(card);
@@ -526,7 +564,7 @@
         if (!C.encodeText(v, C.NICK_LEN || 10)) { e.target.classList.add('bad'); status('That nickname uses a character the game cannot show.', 'err'); return; }
         edit(r, 'Renamed to ' + v, () => M.setNickname(r, v), { full: true });
       } }), ' wide'),
-      field(lv ? 'Level' : 'Level (no data for this species)', h('input', { id: 'ed-level', type: 'number', min: 1, max: 100, value: lv || '', disabled: !lv, onchange: e => {
+      field(lv ? 'Level' : 'Level (no data for this species)', h('input', { id: 'ed-level', type: 'number', title: MAX_TIP, min: 1, max: 100, value: lv || '', disabled: !lv, onchange: e => {
         const L = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1));
         edit(r, 'Set level ' + L, () => C.setLevel(D, r, L), { full: true });
       } })),
@@ -537,7 +575,7 @@
       field('Held item', picker({ id: 'ed-item', value: M.item(r), options: itemOpts(), none: 'None', kind: 'items',
         onPick: id => edit(r, id ? 'Gave ' + D.items[id] : 'Removed held item', () => M.setItem(r, id), { full: true }) })),
       field('Poké Ball', h('select', { id: 'ed-ball', onchange: e => edit(r, 'Set ball', () => M.setBall(r, +e.target.value), { full: true }) }, ballOptions(M.ball(r)))),
-      field('Friendship', h('input', { id: 'ed-fr', type: 'number', min: 0, max: 255, value: M.friendship(r), onchange: e => {
+      field('Friendship', h('input', { id: 'ed-fr', type: 'number', title: MAX_TIP, min: 0, max: 255, value: M.friendship(r), onchange: e => {
         const v = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0));
         edit(r, 'Set friendship ' + v, () => M.setFriendship(r, v), { full: true });
       } })),
@@ -609,7 +647,7 @@
     const cur = evs.slice(), evInputs = [];
     C.STATS.forEach((s, i) => {
       // max stops the arrows at the limit; a bigger typed number is lowered to it.
-      const ev = h('input', { id: `${idp}-ev${i}`, type: 'number', disabled: locked, min: 0, max: evCap(cur, i), value: evs[i], 'aria-label': s + ' EV', onchange: e => {
+      const ev = h('input', { id: `${idp}-ev${i}`, type: 'number', title: MAX_TIP, disabled: locked, min: 0, max: evCap(cur, i), value: evs[i], 'aria-label': s + ' EV', onchange: e => {
         const want = Math.max(0, Math.round(+e.target.value) || 0), v = Math.min(want, evCap(cur, i));
         e.target.value = v; cur[i] = v;
         evInputs.forEach((x, k) => { x.max = evCap(cur, k); });
@@ -618,7 +656,7 @@
       evInputs.push(ev);
       g.append(
         h('span', { class: 'name' + mark(i), title: mark(i) === ' up' ? 'Raised by nature' : mark(i) === ' down' ? 'Lowered by nature' : '' }, s),
-        h('input', { id: `${idp}-iv${i}`, type: 'number', disabled: locked, min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => {
+        h('input', { id: `${idp}-iv${i}`, type: 'number', title: MAX_TIP, disabled: locked, min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => {
           const v = Math.max(0, Math.min(31, Math.round(+e.target.value) || 0)); e.target.value = v; onIv(i, v);
         } }),
         ev,
@@ -847,14 +885,14 @@
           if (e.target.value && !C.encodeText(e.target.value, C.NICK_LEN || 10)) return pickBad(e, 'That nickname uses a character the game cannot show.');
           d.nickname = e.target.value.trim();
         } })),
-        field('Level', h('input', { id: 'add-level', type: 'number', min: 1, max: 100, value: d.level, onchange: e => { d.level = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1)); e.target.value = d.level; } })),
+        field('Level', h('input', { id: 'add-level', type: 'number', title: MAX_TIP, min: 1, max: 100, value: d.level, onchange: e => { d.level = Math.max(1, Math.min(100, Math.round(+e.target.value) || 1)); e.target.value = d.level; } })),
         field('Nature', h('select', { id: 'add-nature', onchange: e => { d.nature = +e.target.value; rerender(); } }, natureOptions(d.nature))),
         field('Gender', h('select', { id: 'add-gender', disabled: fixed, onchange: e => { d.gender = e.target.value === '' ? null : +e.target.value; } },
           fixed ? h('option', {}, ratio === 0 ? genderText(0) : ratio === 254 ? genderText(1) : genderText(2))
             : [h('option', { value: '' }, 'Random'), ...[0, 1].map(v => h('option', { value: v, selected: d.gender === v }, genderText(v)))])),
         field('Held item', picker({ id: 'add-item', value: d.item, options: itemOpts(), none: 'None', kind: 'items', onPick: id => { d.item = id; rerender(); } })),
         field('Poké Ball', h('select', { id: 'add-ball', onchange: e => { d.ball = +e.target.value; } }, ballOptions(d.ball))),
-        field('Friendship', h('input', { id: 'add-fr', type: 'number', min: 0, max: 255, value: d.friendship ?? (C.baseFriendship ? C.baseFriendship(D, d.species) : 70), onchange: e => { d.friendship = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0)); } })),
+        field('Friendship', h('input', { id: 'add-fr', type: 'number', title: MAX_TIP, min: 0, max: 255, value: d.friendship ?? (C.baseFriendship ? C.baseFriendship(D, d.species) : 70), onchange: e => { d.friendship = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0)); } })),
         h('label', { class: 'check' }, h('input', { id: 'add-shiny', type: 'checkbox', checked: d.shiny, onchange: e => { d.shiny = e.target.checked; rerender(); } }), '★ Shiny'),
         field('Met location', h('select', { id: 'add-met', disabled: !d.species, onchange: e => { d.metLocation = +e.target.value; } },
           d.species ? metOptions(d.species, d.metLocation) : h('option', {}, 'Choose a species first'))),

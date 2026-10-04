@@ -125,3 +125,16 @@ console.log('SoulGold checks passed');
 assert.ok(!/\b\w+\.buf\[\w+\.off \+/.test(fs.readFileSync(path.join(root, 'src/app.js'), 'utf8')), 'app.js reads raw Pokémon bytes');
 assert.strictEqual(typeof C.mon.hp, 'function'); assert.strictEqual(typeof require('../src/sg-core.js').mon.hp, 'function');
 console.log('accessor checks passed');
+// Move types and categories line up with the move lists, in both games.
+for (const [d, x, g] of [[D, X, 'Radical Red'], [SD, SX, 'SoulGold']]) {
+  assert.strictEqual(x.mt.length, d.moves.length, g + ' move types'); assert.strictEqual(x.ms.length, d.moves.length, g + ' move categories');
+  const ids = new Set(x.types.map(t => t.id));
+  // Struggle is typeless.
+  d.moves.forEach((n, i) => { if (n) { assert.ok(ids.has(x.mt[i]) || n === 'Struggle', `${g} type of ${n}`); assert.ok([0, 1, 2].includes(x.ms[i]), `${g} category of ${n}`); } });
+  const tn = n => x.types.find(t => t.id === x.mt[d.moves.indexOf(n)]).n, cat = n => x.ms[d.moves.indexOf(n)];
+  assert.deepStrictEqual([tn('Toxic'), tn('Razor Leaf'), tn('Flamethrower')], ['Poison', 'Grass', 'Fire'], g);
+  assert.deepStrictEqual([cat('Razor Leaf'), cat('Flamethrower'), cat('Toxic')], [0, 1, 2], g);
+}
+assert.strictEqual(X.metNames[157], "Professor Oak's Lab");
+assert.ok(!Object.values(X.metNames).some(n => /Sevii Isle \d/.test(n)), 'no FireRed placeholder names');
+console.log('move type checks passed');

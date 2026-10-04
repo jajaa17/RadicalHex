@@ -708,6 +708,17 @@
     w16(b, o + 0x56, u16(b, o + 0x58)); // full HP
   }
   const setPartyCount = (sv, n) => w32(sv.data, sv.sec[1] + 0x34, n);
+  // Copies a Pokémon (from a box or the party) to the end of the party, leaving the original where it is.
+  function copyToParty(sv, D, X, src) {
+    if (mon.empty(src)) throw new Error('Pick a Pokémon to copy.');
+    const n = partyCount(sv);
+    if (n >= 6) throw new Error('Your party is full (6 Pokémon). Move one to a box first.');
+    const dst = partyRef(sv, n);
+    if (src.party) dst.buf.set(src.buf.slice(src.off, src.off + PARTY_MON), dst.off);
+    else boxToParty(D, X, src, dst);
+    setPartyCount(sv, n + 1);
+    return n;
+  }
   // Moves a box Pokémon to the end of the party. Returns its party slot.
   function withdraw(sv, D, X, ref) {
     if (ref.party || mon.empty(ref)) throw new Error('Pick a Pokémon in a box.');
@@ -917,7 +928,7 @@
     load, serialize, build, checksum, allowedRanges, flag, modes,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)

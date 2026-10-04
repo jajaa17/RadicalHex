@@ -703,6 +703,17 @@
     setHp(dst, Math.max(0, s[0] - lost));
   }
   const setPartyCount = (sv, n) => { sv.sb1[PARTY_COUNT] = n; };
+  // Copies a Pokémon (from a box or the party) to the end of the party, leaving the original where it is.
+  function copyToParty(sv, D, X, src) {
+    if (mon.empty(src)) throw new Error('Pick a Pokémon to copy.');
+    const n = partyCount(sv);
+    if (n >= 6) throw new Error('Your party is full (6 Pokémon). Move one to a box first.');
+    const dst = partyRef(sv, n);
+    if (src.party) dst.buf.set(src.buf.slice(src.off, src.off + PARTY_MON), dst.off);
+    else boxToParty(D, X, src, dst);
+    setPartyCount(sv, n + 1);
+    return n;
+  }
   function withdraw(sv, D, X, ref) {
     if (ref.party || mon.empty(ref)) throw new Error('Pick a Pokémon in a box.');
     const n = partyCount(sv);
@@ -887,7 +898,7 @@
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp),

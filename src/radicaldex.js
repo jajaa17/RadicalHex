@@ -6,6 +6,12 @@ window.RHDexView = function (ui) {
   const C = ui.C || window.RHCore;
   const G = ui.game || { key: 'rr', name: 'Radical Red', full: 'Radical Red 4.1' };
   const name = id => (D.species[id] && D.species[id].n) || `#${id}`;
+  // A move name with a small dot in its type's colour; hovering shows its type and category.
+  const CATS = ['Physical', 'Special', 'Status'];
+  const moveName = m => {
+    const t = X.mt && X.types.find(x => x.id === X.mt[m]), c = X.ms && CATS[X.ms[m]];
+    return h('span', { title: [t && t.n, c].filter(Boolean).join(' · ') }, t ? h('i', { class: 'mdot', style: `--type:${t.c}` }) : null, D.moves[m] || '#' + m);
+  };
   const all = Object.keys(X.species).map(Number).filter(id => D.species[id] && D.species[id].n)
     .sort((a, b) => X.species[a].nat - X.species[b].nat || a - b);
   const squash = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
@@ -138,7 +144,7 @@ window.RHDexView = function (ui) {
         enc.length ? h('p', { class: 'note' }, G.key === 'rr' ? 'Wild levels scale with your progress in Radical Red. Chances are per encounter for that method.'
           : `Wild Pokémon from ${G.name}'s own encounter tables. Chances are per encounter for that method.`) : null),
       s.lv.length ? h('section', { class: 'card' }, h('h3', {}, 'Level-up moves'),
-        h('div', { class: 'moves-grid' }, s.lv.map(([m, lv]) => [h('span', { class: 'mono muted' }, lv ? 'Lv ' + lv : 'Evo'), h('span', {}, D.moves[m] || '#' + m)]))) : null);
+        h('div', { class: 'moves-grid' }, s.lv.map(([m, lv]) => [h('span', { class: 'mono muted' }, lv ? 'Lv ' + lv : 'Evo'), moveName(m)]))) : null);
   }
 
   let pane = null, sizer = null;
