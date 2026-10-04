@@ -378,7 +378,7 @@
       for (let i = 0; i < C.partyCount(sv); i++) if (C.heal(D, C.partyRef(sv, i))) healed++;
       return healed > 0;
     }, { full: true, sfx: 'heal' });
-    status(healed ? `Healed ${healed} Pokémon: full HP, no status conditions and full PP.` : 'Your party is already fully healed.', healed ? 'ok' : '');
+    status(healed ? `Healed ${healed} Pokémon: full HP, no status conditions and full PP.` : 'Your party is already fully healed in this file. RadicalHex sees your last in-game save, so damage taken since then is not in it: save in the game, close it in the emulator, then open the file again.', healed ? 'ok' : '');
   }
 
   // ── Party pane ──
@@ -767,7 +767,7 @@
       row.append(moveToBox(r));
       const st = C.partyStatus(r);
       row.append(h('button', { class: 'btn', type: 'button', title: 'Restore HP, cure status conditions and refill PP', onclick: () => {
-        if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true, sfx: 'heal' })) status(`${M.nickname(r)} is already fully healed.`);
+        if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true, sfx: 'heal' })) status(`${M.nickname(r)} is already fully healed in this file (RadicalHex sees your last in-game save).`);
       } }, st ? `Heal (${st.toLowerCase()})` : 'Heal'));
     } else {
       row.append(h('button', { class: 'btn', type: 'button', disabled: !target, onclick: () => {
