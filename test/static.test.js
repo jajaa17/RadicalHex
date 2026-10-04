@@ -121,3 +121,7 @@ assert.strictEqual(SX.metNames[232], 'New Bark Town');
 assert.strictEqual(SD.species[1289].n, 'Sprigatito'); assert.strictEqual(SD.items[28], 'Potion');
 assert.deepStrictEqual(SX.species[157].st, [78, 84, 78, 109, 85, 100], 'Typhlosion base stats');
 console.log('SoulGold checks passed');
+// The UI reads Pokémon data through the core's accessors, never raw offsets (Radical Red and SoulGold differ).
+assert.ok(!/\b\w+\.buf\[\w+\.off \+/.test(fs.readFileSync(path.join(root, 'src/app.js'), 'utf8')), 'app.js reads raw Pokémon bytes');
+assert.strictEqual(typeof C.mon.hp, 'function'); assert.strictEqual(typeof require('../src/sg-core.js').mon.hp, 'function');
+console.log('accessor checks passed');

@@ -369,6 +369,7 @@
     setMetLevel: (m, v) => SB(m, (S + 38) * 8, 7, v & 0x7F),
     otGender: m => B(m, (S + 39) * 8 + 3, 1),
     setOtGender: (m, g) => SB(m, (S + 39) * 8 + 3, 1, g & 1),
+    hp: m => (m.party ? u16(m.buf, m.off + 82) : null), // current HP (party only)
     partyStats: m => (m.party ? [84, 86, 88, 92, 94, 90].map(o => u16(m.buf, m.off + o)) : null),
   };
 

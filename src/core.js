@@ -330,6 +330,7 @@
     otGender: m => u16(m.buf, F(m, 0x46, 0x34)) >>> 15,
     setOtGender: (m, g) => w16(m.buf, F(m, 0x46, 0x34), (u16(m.buf, F(m, 0x46, 0x34)) & 0x7FFF) | ((g & 1) << 15)),
     setOtName(m, s) { const b = encodeText(s, 7); if (!b) return false; m.buf.set(b, m.off + 0x14); return true; },
+    hp: m => (m.party ? u16(m.buf, m.off + 0x56) : null), // current HP (party only)
     partyStats: m => (m.party ? [0x58, 0x5A, 0x5C, 0x60, 0x62, 0x5E].map(o => u16(m.buf, m.off + o)) : null),
   };
 
