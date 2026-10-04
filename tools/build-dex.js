@@ -12,6 +12,10 @@ const d = eval('(' + fs.readFileSync(path.join(SRC, 'jwdex', 'data.js'), 'utf8')
 const mapsecs = JSON.parse(fs.readFileSync(path.join(SRC, 'pokefirered', 'src', 'data', 'region_map', 'region_map_sections.json'), 'utf8')).map_sections;
 
 const { species, moves, items, types, abilities } = d;
+// Radical Red cuts a few Mega Stone names to fit the game's 12-letter limit; RadicalHex shows the full, official spelling.
+const FULL_NAMES = { 'Charzardite X': 'Charizardite X', 'Charzardite Y': 'Charizardite Y', 'Blastoisnite': 'Blastoisinite',
+  'Kangaskanite': 'Kangaskhanite', 'Aerodactlite': 'Aerodactylite', 'Houndoomnite': 'Houndoominite' };
+for (const it of Object.values(items)) if (it && FULL_NAMES[it.name]) it.name = FULL_NAMES[it.name];
 
 // Evolution descriptions are template strings in the dex data; render them once here.
 function evoText(evo) {

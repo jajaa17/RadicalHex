@@ -24,7 +24,7 @@ function demoSave() {
   data.set(C.encodeText('RED', 7), 0); data[7] = 0xFF; // trainer name
   w16(0xA, 24601); w16(0xC, 11037); // trainer and secret id
   const party = [
-    ['Charizard', 62, 'Timid', 'Charzardite Y', ['Flamethrower', 'Air Slash', 'Solar Beam', 'Focus Blast'], 2, 'Route 4'],
+    ['Charizard', 62, 'Timid', 'Charizardite Y', ['Flamethrower', 'Air Slash', 'Solar Beam', 'Focus Blast'], 2, 'Route 4'],
     ['Snorlax', 61, 'Careful', 'Leftovers', ['Body Slam', 'Rest', 'Sleep Talk', 'Curse'], 0, 'Route 12'],
     ['Lapras', 60, 'Modest', 'Assault Vest', ['Freeze-Dry', 'Surf', 'Thunderbolt', 'Ice Shard'], 0, 'Silph Co.'],
     ['Alakazam', 61, 'Timid', 'Life Orb', ['Psychic', 'Shadow Ball', 'Focus Blast', 'Recover'], 2, 'Route 24'],

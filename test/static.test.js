@@ -147,3 +147,10 @@ console.log('move type checks passed');
   assert.ok(!X.megaStones, 'Radical Red uses its own stones');
 }
 console.log('mega stone checks passed');
+// Radical Red's shortened Mega Stone names are shown in full.
+for (const n of ['Charizardite X', 'Charizardite Y', 'Blastoisinite', 'Kangaskhanite', 'Aerodactylite', 'Houndoominite']) assert.ok(D.items.includes(n), n);
+for (const n of ['Charzardite X', 'Blastoisnite', 'Kangaskanite', 'Aerodactlite', 'Houndoomnite']) assert.ok(!D.items.includes(n), n);
+assert.strictEqual(D.items[534], 'Charizardite X');
+assert.ok(JSON.stringify(X.species[6].evo).includes('with the Charizardite X'));
+{ const { opts } = C.fromShowdown(D, 'Charizard @ Charizardite X\n- Flamethrower', X); assert.strictEqual(opts.item, 534, 'Showdown import with the official name'); }
+console.log('item name checks passed');
