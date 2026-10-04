@@ -158,7 +158,8 @@
     const refilter = () => {
       const q = squash(search.value), n = search.value.replace(/\D/g, '');
       shown = all.filter(o => (!letter || (letter === '#' ? !/^[a-z]/i.test(o.label) : o.label[0].toUpperCase() === letter))
-        && (!q || squash(o.label).includes(q) || (n && String(o.id) === n)));
+        && (!q || squash(o.label).includes(q) || (n && String(o.id) === n))
+        && (!o.id || ((mType < 0 || X.mt[o.id] === mType) && (mCat < 0 || X.ms[o.id] === mCat))));
       active = 0; draw(); list.scrollTop = 0;
       for (const b of letters.children) b.setAttribute('aria-pressed', String(b.dataset.l === letter));
     };
@@ -178,7 +179,20 @@
       else if (e.key === 'Enter') { e.preventDefault(); if (shown[active]) choose(shown[active]); }
       else if (e.key === 'Escape') { e.preventDefault(); closeList(); btn.focus(); }
     });
-    pop = h('div', { class: 'pop' }, search, letters, list, pager);
+    // Move lists: filter by type (only the types in this list, with how many) and by category.
+    let mType = -1, mCat = -1, moveBar = null;
+    if (tag && X.mt && X.ms) {
+      const counts = new Map();
+      for (const o of all) if (o.id) counts.set(X.mt[o.id], (counts.get(X.mt[o.id]) || 0) + 1);
+      const typeSel = h('select', { class: 'pop-type', 'aria-label': 'Move type', onmousedown: e => e.stopPropagation(), onchange: e => { mType = +e.target.value; refilter(); search.focus(); } },
+        h('option', { value: -1 }, 'All types'), (X.types || []).filter(t => counts.has(t.id)).map(t => h('option', { value: t.id }, `${t.n} (${counts.get(t.id)})`)));
+      const cats = h('div', { class: 'pop-cats' }, ['All', ...CATS].map((c, k) =>
+        h('button', { type: 'button', class: 'pop-letter', 'aria-pressed': String(k === 0), onmousedown: e => {
+          e.preventDefault(); mCat = k - 1; for (const b of cats.children) b.setAttribute('aria-pressed', String(b === e.currentTarget)); refilter();
+        } }, c)));
+      moveBar = h('div', { class: 'pop-movebar' }, typeSel, cats);
+    }
+    pop = h('div', { class: 'pop' }, search, moveBar, letters, list, pager);
     document.body.append(pop);
     const r = btn.getBoundingClientRect(), w = Math.max(r.width, 340), below = innerHeight - r.bottom - 12, above = r.top - 12;
     pop.style.width = w + 'px';
