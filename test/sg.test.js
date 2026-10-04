@@ -85,6 +85,11 @@ for (const file of process.argv.slice(2)) {
       assert.strictEqual(M.otName(m), C.trainer(back).name, where);
       assert.strictEqual(X.metNames[M.metLocation(m)], 'New Bark Town', where);
       assert.strictEqual(M.metLevel(m), o.level, where);
+      // like a Pokémon caught in the game: the personality gives the nature and shininess, base friendship
+      assert.strictEqual(m.buf[m.off + 20] >> 3, 0, where + ' hidden nature bits');
+      assert.strictEqual((m.buf[m.off + 31] >> 6) & 1, 0, where + ' shiny bit');
+      assert.strictEqual(M.pid(m) % 25, o.nature, where);
+      assert.strictEqual(M.friendship(m), C.baseFriendship(D, o.species), where);
       assert.ok(!M.isEgg(m));
       const bad = C.legality(D, X, m).filter(p => p.level === 'error');
       assert.deepStrictEqual(bad, [], where + ' legal');

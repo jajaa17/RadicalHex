@@ -236,7 +236,7 @@ for i in range(P['NUM_SPECIES']):
     flags = {f: bits(b, o * 8 + P[f][0], 1) for f in ('isMega', 'isPrimal', 'isGmax', 'isUB', 'isTera', 'isTotem')}
     species.append({
         'name': name, 'st': st, 't': [b[o + P['SpeciesInfo__types']], b[o + P['SpeciesInfo__types'] + 1]],
-        'gr': b[o + P['SpeciesInfo__genderRatio']], 'growth': b[o + P['SpeciesInfo__growthRate']],
+        'gr': b[o + P['SpeciesInfo__genderRatio']], 'fr': b[o + P['SpeciesInfo__friendship']], 'growth': b[o + P['SpeciesInfo__growthRate']],
         'ab': [u16(b, o + P['SpeciesInfo__abilities'] + 2 * k) for k in range(3)],
         'inn': [u16(b, o + P['SpeciesInfo__innates'] + 2 * k) for k in range(3)],
         'nat': bits(b, o * 8 + P['natDexNum'][0], 16),
@@ -341,6 +341,8 @@ for i, s in enumerate(species):
         e['nat'] = s['nat']
         e['g'] = s['growth'] + 1
         e['gr'] = s['gr']
+        if s['fr'] != 50:
+            e['f'] = s['fr']  # base friendship, when it isn't the usual 50
         if s['battleOnly']:
             e['b'] = 1
         key = (s['front'], s['pal'])

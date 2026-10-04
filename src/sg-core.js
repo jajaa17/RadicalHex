@@ -480,6 +480,8 @@
   }
 
   // ── Species helpers ──
+  // The species' base friendship (the game's gSpeciesInfo[].friendship; most are 50 in SoulGold).
+  const baseFriendship = (D, sp) => (D.species[sp] && D.species[sp].f) ?? 50;
   const growth = (D, sp) => (D.species[sp] && D.species[sp].g ? D.exp[D.species[sp].g - 1] : null);
   function levelOf(D, m) {
     if (m.party) return mon.level(m);
@@ -518,12 +520,16 @@
   // ── Personality ──
   // In SoulGold nature and shininess are separate from the personality (the game's own nature and shiny bits), so
   // the personality only decides gender here and is changed only for that.
-  function solvePid({ otid, nature = 0, shiny = false, gender = null, ratio = 127 }, rnd = Math.random) {
-    const r = n => Math.floor(rnd() * n);
+  // A personality that already gives the nature and shininess, like a Pokémon caught in the game
+  // (so the hidden nature and shiny bits stay 0). With nature or shiny left out, any value fits that part.
+  function solvePid({ otid, nature = null, shiny = null, odds = RELEASE_SHINY_ODDS, gender = null, ratio = 127 }, rnd = Math.random) {
+    const r = n => Math.floor(rnd() * n), ids = ((otid >>> 16) ^ (otid & 0xFFFF)) >>> 0;
     for (let n = 0; n < 100000; n++) {
-      const low = r(256);
-      if (gender !== null && ratio > 0 && ratio < 254 && ((low < ratio) !== (gender === 1))) continue;
-      return (((r(65536) << 16) | (r(256) << 8) | low) >>> 0);
+      const lo = r(65536);
+      if (gender !== null && ratio > 0 && ratio < 254 && (((lo & 0xFF) < ratio) !== (gender === 1))) continue;
+      const sv = shiny === null ? r(65536) : shiny ? r(odds) : odds + r(65536 - odds);
+      const pid = ((((ids ^ lo ^ sv) & 0xFFFF) << 16) | lo) >>> 0;
+      if (nature === null || pid % 25 === nature) return pid;
     }
     throw new Error('Could not find a matching personality value.');
   }
@@ -652,7 +658,7 @@
     if (!nick) throw new Error('The nickname uses a character the game cannot show.');
     const b = new Uint8Array(BOX_MON), m = { buf: b, off: 0, party: false, odds: sv.odds };
     const ratio = genderRatio(D, opts.species);
-    w32(b, 0, solvePid({ otid, gender: opts.gender, ratio }));
+    w32(b, 0, solvePid({ otid, nature: opts.nature | 0, shiny: !!opts.shiny, odds: sv.odds || RELEASE_SHINY_ODDS, gender: opts.gender, ratio }));
     w32(b, 4, otid);
     b.set(nick, 8);
     SB(m, 160, 3, LANGUAGE_ENGLISH);
@@ -661,7 +667,7 @@
     mon.setItem(m, opts.item || 0);
     const L = Math.max(1, Math.min(100, opts.level | 0));
     mon.setExp(m, growth(D, opts.species)[L]);
-    mon.setFriendship(m, opts.friendship ?? 70);
+    mon.setFriendship(m, opts.friendship ?? baseFriendship(D, opts.species));
     mon.setBall(m, opts.ball ?? 1);
     mon.setMoves(m, opts.moves.map(x => x | 0), D);
     mon.setEvs(m, opts.evs || [0, 0, 0, 0, 0, 0]);
@@ -878,7 +884,7 @@
   const api = {
     GAME: 'sg', BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, CANDY_JAR_MAX, candyJar, setCandyJar, BP_MAX, bp, setBp, natureEffect,
     load, serialize, build, checksum, allowedRanges,
-    partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
+    partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,

@@ -783,7 +783,7 @@
   }
 
   // ── Add a Pokémon (empty box slot) ──
-  const newDraft = () => ({ species: 0, nickname: '', level: 50, nature: 0, gender: null, shiny: false, item: 0, ball: Math.max(0, C.BALLS.indexOf('Poké Ball')), friendship: 70,
+  const newDraft = () => ({ species: 0, nickname: '', level: 50, nature: 0, gender: null, shiny: false, item: 0, ball: Math.max(0, C.BALLS.indexOf('Poké Ball')), friendship: null, // null: the species' base friendship
     ability: 0, metLocation: G.defaultMet, moves: [0, 0, 0, 0], ivs: [31, 31, 31, 31, 31, 31], evs: [0, 0, 0, 0, 0, 0], text: '' });
   function addForm() {
     if (!draft) draft = newDraft();
@@ -836,7 +836,7 @@
             : [h('option', { value: '' }, 'Random'), ...[0, 1].map(v => h('option', { value: v, selected: d.gender === v }, genderText(v)))])),
         field('Held item', picker({ id: 'add-item', value: d.item, options: itemOpts(), none: 'None', kind: 'items', onPick: id => { d.item = id; rerender(); } })),
         field('Poké Ball', h('select', { id: 'add-ball', onchange: e => { d.ball = +e.target.value; } }, ballOptions(d.ball))),
-        field('Friendship', h('input', { id: 'add-fr', type: 'number', min: 0, max: 255, value: d.friendship, onchange: e => { d.friendship = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0)); } })),
+        field('Friendship', h('input', { id: 'add-fr', type: 'number', min: 0, max: 255, value: d.friendship ?? (C.baseFriendship ? C.baseFriendship(D, d.species) : 70), onchange: e => { d.friendship = Math.max(0, Math.min(255, Math.round(+e.target.value) || 0)); } })),
         h('label', { class: 'check' }, h('input', { id: 'add-shiny', type: 'checkbox', checked: d.shiny, onchange: e => { d.shiny = e.target.checked; rerender(); } }), '★ Shiny'),
         field('Met location', h('select', { id: 'add-met', disabled: !d.species, onchange: e => { d.metLocation = +e.target.value; } },
           d.species ? metOptions(d.species, d.metLocation) : h('option', {}, 'Choose a species first'))),
