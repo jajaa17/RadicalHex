@@ -108,11 +108,12 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - **Graveyard box**: pick a box for fainted Pokémon and move them there from the editor
 - **Encounter log** built from where each of your Pokémon was met, with locations that have more than one catch flagged
 - **No encounter yet**: locations with wild Pokémon where you have no catch so far
+- **Missed encounters**: fainted, ran from or failed to catch your first encounter somewhere? Record it (location, the Pokémon from that area's encounter list, and what happened) and the location counts as used: it leaves "No encounter yet", shows in the encounter log, and a catch there afterwards is flagged. Click a location under "No encounter yet" to fill the form
 - **Evolution families you own**, for the dupes clause
 - Settings are remembered per trainer
 
 ### Safety
-- A backup is saved to the `Backups` folder next to RadicalHex.exe every time you open a save and right before every save. Restore any of them from the **Backups** tab. To keep the folder tidy, tick backups and delete them, or use **Select all but the newest 5** (per save). The tab also lists backups made by versions before 1.0.5 (those were kept in `Documents\RadicalHex\Backups`).
+- A backup is saved to the `Backups` folder next to RadicalHex.exe every time you open a save and right before every save. Backups keep your save's own file type (a `.srm` is backed up as `.srm`, a `.sav` as `.sav`). Restore any of them from the **Backups** tab; a backup of the other layout (mGBA `.sav` with clock data, RetroArch `.srm` without) is fitted to the open file, so it keeps the size its emulator expects. To keep the folder tidy, tick backups and delete them, or use **Select all but the newest 5** (per save). The tab also lists backups made by versions before 1.0.5 (those were kept in `Documents\RadicalHex\Backups`).
 - Every save is checked before it is written. RadicalHex rebuilds the file, reloads it, makes sure only the parts it is allowed to edit changed, and validates every Pokémon and bag entry you touched. If anything is off, nothing is written.
 - Files are written to a temporary file first, verified, then swapped in.
 - Only the newest save slot is edited, so the game's previous save stays as a fallback. RadicalHex picks that slot the same way the game does, so a half-written save (from copying the file while the game was saving) is never mistaken for the real one.

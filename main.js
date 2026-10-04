@@ -84,14 +84,18 @@ function createWindow() {
 }
 
 // Keeps a copy of the bytes in the backups folder unless the newest backup of this save is identical.
+// A backup keeps the save's own file type (.srm stays .srm, .sav stays .sav); anything else is kept as .sav.
+const BACKUP_EXTS = ['.sav', '.srm', '.sa1', '.dsv', '.fla'];
+const isBackup = f => BACKUP_EXTS.includes(path.extname(f).toLowerCase());
 function backup(name, bytes) {
   const dir = backupDir();
   fs.mkdirSync(dir, { recursive: true });
-  const base = path.parse(name).name;
-  const mine = fs.readdirSync(dir).filter(f => f.startsWith(base + ' (') && f.endsWith('.sav')).sort();
+  const { name: base, ext: e } = path.parse(name);
+  const ext = BACKUP_EXTS.includes(e.toLowerCase()) ? e.toLowerCase() : '.sav';
+  const mine = fs.readdirSync(dir).filter(f => f.startsWith(base + ' (') && path.extname(f).toLowerCase() === ext).sort();
   const last = mine[mine.length - 1];
   if (last && sha1(fs.readFileSync(path.join(dir, last))) === sha1(bytes)) return path.join(dir, last);
-  const file = path.join(dir, `${base} (${stamp()}).sav`);
+  const file = path.join(dir, `${base} (${stamp()})${ext}`);
   fs.writeFileSync(file, bytes);
   if (sha1(fs.readFileSync(file)) !== sha1(bytes)) throw new Error('The backup could not be verified.');
   return file;
@@ -161,7 +165,7 @@ handle('convert-save', async ({ bytes, format } = {}) => {
   writeSafely(r.filePath, buf);
   return r.filePath;
 });
-handle('list-backups', async () => backupDirs().flatMap(dir => fs.readdirSync(dir).filter(f => f.endsWith('.sav')).map(f => {
+handle('list-backups', async () => backupDirs().flatMap(dir => fs.readdirSync(dir).filter(isBackup).map(f => {
   const st = fs.statSync(path.join(dir, f));
   return { name: f, path: path.join(dir, f), size: st.size, time: st.mtimeMs, old: dir !== backupDir() };
 })).sort((a, b) => b.time - a.time));
@@ -170,11 +174,11 @@ handle('read-backup', async p => {
   if (!backupDirs().includes(path.dirname(full))) throw new Error('That file is not in a RadicalHex backups folder.');
   return new Uint8Array(fs.readFileSync(full));
 });
-// Deletes backups the user picked. Only .sav files directly inside a RadicalHex backups folder can be deleted.
+// Deletes backups the user picked. Only save files (.sav, .srm...) directly inside a RadicalHex backups folder can be deleted.
 handle('delete-backups', async paths => {
   const dirs = backupDirs();
   const ok = (Array.isArray(paths) ? paths : []).map(p => path.resolve(String(p)))
-    .filter(f => f.toLowerCase().endsWith('.sav') && dirs.includes(path.dirname(f)) && fs.existsSync(f));
+    .filter(f => isBackup(f) && dirs.includes(path.dirname(f)) && fs.existsSync(f));
   let n = 0;
   for (const f of ok) { fs.rmSync(f); n++; }
   return n;

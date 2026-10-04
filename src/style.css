@@ -315,11 +315,16 @@ table.enc tr:last-child td { border-bottom: 0; }
 /* ── Nuzlocke ── */
 .cap-big { display: flex; align-items: baseline; gap: 10px; }
 .cap-big strong { font-family: var(--display); font-size: 30px; line-height: 1; }
+/* Nuzlocke cards pack into columns, so cards of different heights leave no gaps at any width. */
+.nz-cards { display: block; columns: 3 250px; column-gap: 12px; }
+.nz-cards > .card { break-inside: avoid; margin-bottom: 12px; }
 .nz-chips, .nz-open { display: flex; flex-wrap: wrap; gap: 6px; }
 .nz-mon { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--raised); border-radius: 99px; padding: 1px 10px 1px 2px; font-size: 12.5px; }
 .nz-mon:hover { border-color: var(--muted); }
 .nz-mon.dead { opacity: .62; }
 .nz-mon.plain { padding: 4px 10px; }
+.nz-missed { gap: 4px; border-style: dashed; }
+.nz-missed .iconbtn { padding: 0 2px; line-height: 1; font-size: 14px; }
 .nz-name { font-weight: 600; }
 .nz-tag { font-size: 11px; color: var(--muted); }
 .nz-tag.dead { color: var(--bad); } .nz-tag.party { color: var(--good); }

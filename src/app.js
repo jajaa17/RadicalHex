@@ -1141,7 +1141,7 @@
     if (tab !== 'backups') return; // switched tabs while the list was loading
     for (const p of [...picked]) if (!list.some(b => b.path === p)) picked.delete(p);
     // Backups are named "<save> (<date time>).sav"; "keep the newest 5" works per save.
-    const saveOf = b => b.name.replace(/ \(\d{4}-\d\d-\d\d \d\d-\d\d-\d\d\)\.sav$/i, '');
+    const saveOf = b => b.name.replace(/ \(\d{4}-\d\d-\d\d \d\d-\d\d-\d\d\)\.\w+$/i, '');
     const keepNewest = k => { picked.clear(); const seen = new Map(); for (const b of list) { const n = (seen.get(saveOf(b)) || 0) + 1; seen.set(saveOf(b), n); if (n > k) picked.add(b.path); } renderBackups(); };
     const del = async () => {
       const files = list.filter(b => picked.has(b.path));
@@ -1175,11 +1175,21 @@
           h('td', {}, b.name, b.old ? h('span', { class: 'chip', style: 'margin-left:8px' }, 'older') : null), h('td', { class: 'mono' }, new Date(b.time).toLocaleString()), h('td', { class: 'mono' }, Math.round(b.size / 1024) + ' KB'),
           h('td', {}, h('button', { class: 'btn small', type: 'button', onclick: () => restoreBackup(b) }, 'Restore')))))) : h('p', { class: 'note' }, 'No backups yet.'));
   }
+  // A backup restored over a file of the other layout (mGBA's .sav keeps 16 bytes of clock data after the 128 KB save,
+  // RetroArch's .srm doesn't) is fitted to the open file, so the file keeps the size its emulator expects.
+  function fitLayout(bytes, now) {
+    const FLASH = 0x20000, RTC = 16;
+    if (bytes.length === now.length) return bytes;
+    if (bytes.length === FLASH + RTC && now.length === FLASH) return bytes.slice(0, FLASH);
+    if (bytes.length === FLASH && now.length === FLASH + RTC) { const out = new Uint8Array(FLASH + RTC); out.set(bytes); out.set(now.subarray(FLASH), FLASH); return out; }
+    throw new Error(`That backup is ${bytes.length.toLocaleString()} bytes and the open file is ${now.length.toLocaleString()} bytes, so it was not restored over it.`);
+  }
   async function restoreBackup(b) {
     const choice = await modal('Restore this backup?', `${b.name}\n\nThis writes the backup over ${fileName}${dirty ? ' and discards your unsaved changes' : ''}. The current file is backed up first, so you can undo this from here too.`, [{ text: 'Cancel' }, { text: 'Restore', primary: true }]);
     if (choice !== 1) return;
     try {
-      const bytes = await host.readBackup(b.path);
+      let bytes = await host.readBackup(b.path);
+      bytes = fitLayout(bytes, sv.original);
       const next = C.load(bytes); // only real saves of the same game are restored
       await host.save(bytes);     // main backs up the current file before writing
       sv = next; undo = []; dirty = 0; draft = null;
@@ -1338,7 +1348,7 @@
   const views = {};
   function viewsFor(g) {
     if (!views[g.key]) {
-      const ui = { h, put, sprite, cryButton, D: g.D, X: g.X, C: g.C, game: g, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim };
+      const ui = { h, put, sprite, cryButton, D: g.D, X: g.X, C: g.C, game: g, save: () => sv, select: (party, b, s) => select(party, b, s), refresh: () => { renderHeader(); renderEditor(); }, openDex, trim, status: (m, k) => status(m, k) };
       views[g.key] = { dex: window.RHDexView(ui), nuz: window.RHNuzlocke(ui) };
     }
     return views[g.key];
