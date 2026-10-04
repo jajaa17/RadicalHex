@@ -88,7 +88,7 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 ![The RadicalDex showing Eevee's evolutions](docs/screenshot-radicaldex.png)
 
 A Pokédex built from Radical Red's own data, so it matches the hack rather than the official games:
-- Every species and form, with sprites, filter by name, number or type, and "only Pokémon in my save"
+- Every species and form, with sprites, filter by name, number, type, **generation** (by National Dex number) and **location** (every route and area in story order), and "only Pokémon in my save". Click a place in a Pokémon's location table to list everything found there. The SoulDex has the same filters with SoulGold's own routes
 - Types, base stats and abilities (ability 1, ability 2 and hidden ability) as they are in Radical Red
 - **Where to find it:** every location, method (grass by day or night, surfing, fishing rods, Rock Smash, gifts, trades, overworld, roaming, raids), levels and encounter chance
 - **Evolution tree** with Radical Red's evolution methods

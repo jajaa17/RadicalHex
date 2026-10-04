@@ -15,7 +15,15 @@ window.RHDexView = function (ui) {
   const all = Object.keys(X.species).map(Number).filter(id => D.species[id] && D.species[id].n)
     .sort((a, b) => X.species[a].nat - X.species[b].nat || a - b);
   const squash = s => s.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]/g, '');
-  let current = all[0], query = '', type = -1, ownedOnly = false, shiny = false, listTop = 0;
+  let current = all[0], query = '', type = -1, gen = 0, area = -1, ownedOnly = false, shiny = false, listTop = 0;
+  // Generation by National Dex number (regional forms count with their base species, as in the Pokédex).
+  const GENS = [[1, 151], [152, 251], [252, 386], [387, 493], [494, 649], [650, 721], [722, 809], [810, 905], [906, 1025]];
+  const genOf = id => { const n = X.species[id].nat, g = GENS.findIndex(([a, z]) => n >= a && n <= z); return g < 0 ? 10 : g + 1; };
+  const gens = [...new Set(all.map(genOf))].sort((a, b) => a - b);
+  // Species found at each location (wild, gift, trade, raid), from the game's encounter tables.
+  const atArea = X.areas.map(() => new Set());
+  for (const [sp, es] of Object.entries(X.enc || {})) for (const e of es) if (atArea[e[0]]) atArea[e[0]].add(+sp);
+  const areaOrder = X.areas.map((n, i) => i).filter(i => atArea[i].size);
 
   const typeBadge = t => { const x = X.types.find(y => y.id === t); return x ? h('span', { class: 'type', style: `--type:${x.c}` }, x.n) : null; };
   const pad = n => String(n).padStart(4, '0');
@@ -36,13 +44,17 @@ window.RHDexView = function (ui) {
     return { bySpecies, families };
   }
 
+  function matches(id, own) {
+    const q = squash(query);
+    return (!q || squash(name(id)).includes(q) || String(X.species[id].nat) === query.trim())
+      && (type < 0 || X.species[id].t.includes(type)) && (!gen || genOf(id) === gen) && (area < 0 || atArea[area].has(id))
+      && (!ownedOnly || own.bySpecies.has(id));
+  }
   // Only the rows in view are in the page (plus a few either side), so the list stays light with 1,300+ Pokémon.
   const ROW = 35, EXTRA = 8;
   let rows = [];
   function list(own) {
-    const q = squash(query);
-    rows = all.filter(id => (!q || squash(name(id)).includes(q) || String(X.species[id].nat) === query.trim())
-      && (type < 0 || X.species[id].t.includes(type)) && (!ownedOnly || own.bySpecies.has(id)));
+    rows = all.filter(id => matches(id, own));
     const inner = h('div', { class: 'dex-vlist', style: `height:${rows.length * ROW}px` });
     const box = h('div', { class: 'dex-list', role: 'listbox', 'aria-label': 'Pokémon' }, inner);
     let first = -1, last = -1;
@@ -65,7 +77,7 @@ window.RHDexView = function (ui) {
     box.addEventListener('scroll', () => { paint(); if (ui.trim) ui.trim(); }, { passive: true });
     box.paint = paint;
     const page = d => box.scrollBy({ top: d * (box.clientHeight - 40) });
-    return [h('div', { class: 'dex-count note' }, `${rows.length} Pokémon`), box,
+    return [h('div', { class: 'dex-count note' }, rows.length ? `${rows.length} Pokémon` : 'No Pokémon match these filters.'), box,
       h('div', { class: 'pop-pager' },
         h('button', { type: 'button', class: 'btn small', title: 'Page up', onclick: () => page(-1) }, '▲ Up'),
         h('button', { type: 'button', class: 'btn small', onclick: () => { box.scrollTop = 0; } }, 'Top'),
@@ -135,7 +147,7 @@ window.RHDexView = function (ui) {
       h('section', { class: 'card' }, h('h3', {}, 'Where to find it'),
         enc.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'enc' },
           h('thead', {}, h('tr', {}, h('th', {}, 'Location'), h('th', {}, 'How'), h('th', {}, 'Levels'), h('th', {}, 'Chance'))),
-          h('tbody', {}, enc.map(e => h('tr', {}, h('td', {}, X.areas[e[0]]), h('td', {}, X.methods[e[1]]),
+          h('tbody', {}, enc.map(e => h('tr', {}, h('td', {}, h('button', { type: 'button', class: 'link', title: `Show every Pokémon found at ${X.areas[e[0]]}`, onclick: () => { area = e[0]; listTop = 0; render(); } }, X.areas[e[0]])), h('td', {}, X.methods[e[1]]),
             h('td', { class: 'mono' }, e[3] == null ? '—' : e[3] === e[4] ? String(e[3]) : `${e[3]}–${e[4]}`),
             h('td', { class: 'mono' }, e[2] == null ? '—' : e[2] + '%'))))))
           : h('p', { class: 'note' }, members.length > 1 && root !== id
@@ -156,10 +168,17 @@ window.RHDexView = function (ui) {
       oninput: e => { query = e.target.value; listTop = 0; render(); const s = document.getElementById('dex-search'); s.focus(); s.setSelectionRange(query.length, query.length); } });
     const types = h('select', { id: 'dex-type', 'aria-label': 'Type', onchange: e => { type = +e.target.value; listTop = 0; render(); } },
       h('option', { value: -1 }, 'All types'), X.types.map(t => h('option', { value: t.id, selected: t.id === type }, t.n)));
+    const gensSel = h('select', { id: 'dex-gen', 'aria-label': 'Generation', onchange: e => { gen = +e.target.value; listTop = 0; render(); } },
+      h('option', { value: 0 }, 'All gens'), gens.map(g => h('option', { value: g, selected: g === gen }, g === 10 ? 'Other' : `Gen ${g}`)));
+    const areaSel = h('select', { id: 'dex-area', 'aria-label': 'Location', onchange: e => { area = +e.target.value; listTop = 0; render(); } },
+      h('option', { value: -1 }, 'All locations'), areaOrder.map(i => h('option', { value: i, selected: i === area }, X.areas[i])));
+    const filtered = query || type >= 0 || gen || area >= 0 || ownedOnly;
+    const clear = filtered ? h('button', { id: 'dex-clear', type: 'button', class: 'link', style: 'align-self:flex-start', onclick: () => { query = ''; type = -1; gen = 0; area = -1; ownedOnly = false; listTop = 0; render(); } }, 'Clear filters') : null;
     const ownBox = ui.save() ? h('label', { class: 'check' }, h('input', { id: 'dex-owned', type: 'checkbox', checked: ownedOnly, onchange: e => { ownedOnly = e.target.checked; listTop = 0; render(); } }), 'Only Pokémon in my save') : null;
     const [count, box, pager] = list(own);
+    if (rows.length && !rows.includes(current)) current = rows[0]; // a filter hid it: show the first match instead
     pane.replaceChildren(h('div', { class: 'dex' },
-      h('aside', { class: 'dex-side' }, h('div', { class: 'dex-filters' }, search, types, ownBox), count, box, pager),
+      h('aside', { class: 'dex-side' }, h('div', { class: 'dex-filters' }, search, h('div', { class: 'dex-pair' }, types, gensSel), areaSel, ownBox, clear), count, box, pager),
       detail(current, own)));
     box.scrollTop = listTop;
     const at = rows.indexOf(current) * ROW;
@@ -173,6 +192,7 @@ window.RHDexView = function (ui) {
     const box = pane && pane.querySelector('.dex-list');
     if (box) listTop = box.scrollTop;
     current = id;
+    if (!matches(id, owned())) { query = ''; type = -1; gen = 0; area = -1; ownedOnly = false; listTop = 0; } // opened from elsewhere: don't hide it
     render();
     const d = pane.querySelector('.dex-detail');
     if (d) d.scrollTop = 0;
