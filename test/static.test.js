@@ -138,3 +138,12 @@ for (const [d, x, g] of [[D, X, 'Radical Red'], [SD, SX, 'SoulGold']]) {
 assert.strictEqual(X.metNames[157], "Professor Oak's Lab");
 assert.ok(!Object.values(X.metNames).some(n => /Sevii Isle \d/.test(n)), 'no FireRed placeholder names');
 console.log('move type checks passed');
+// SoulGold's working Mega Stones: the 18 type stones and the Bondstone (the official stones are leftovers that do nothing).
+{
+  const st = SX.megaStones.filter(i => SD.pocket[i] === 'megas').map(i => SD.items[i]);
+  assert.strictEqual(st.length, 19, 'SoulGold Mega Stones');
+  for (const n of ['Watertite', 'Bugtite', 'Dragotite', 'Firetite', 'Bondstone']) assert.ok(st.includes(n), n);
+  for (const n of ['Charizardite X', 'Golisopite', 'Blastoisinite']) assert.ok(!st.includes(n), n);
+  assert.ok(!X.megaStones, 'Radical Red uses its own stones');
+}
+console.log('mega stone checks passed');

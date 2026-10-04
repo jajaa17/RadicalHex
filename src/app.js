@@ -50,7 +50,8 @@
     if (M.evs(r).some(v => v)) out.push({ level: 'warn', text: 'This save uses Minimal Grinding mode, where Pokémon get no EVs, but this one has EVs.', field: 'evs' });
     return out;
   };
-  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, X, r).concat(mgIssues(r)));
+  const stoneIssue = r => (deadStone(M.item(r)) ? [{ level: 'warn', text: `${D.items[M.item(r)]} doesn't Mega Evolve anything in ${G.name}. Its Megas use a stone for each type (like the Watertite) or the Bondstone.`, field: 'item' }] : []);
+  const legal = r => (hax || !r || M.empty(r) ? [] : C.legality(D, X, r).concat(mgIssues(r), stoneIssue(r)));
   const illegal = r => legal(r).some(p => p.level === 'error');
 
   // ── Names ──
@@ -95,7 +96,10 @@
   // ── Pickers: a button that opens a scrollable list. Typing to filter is optional. ──
   let OPTS = {};
   const speciesOpts = () => OPTS.species || (OPTS.species = D.species.map((s, i) => (addable(i) ? { id: i, label: s.n } : null)).filter(Boolean));
-  const itemOpts = () => OPTS.items || (OPTS.items = D.items.map((n, i) => (i && C.validItem(D, i) ? { id: i, label: n } : null)).filter(Boolean));
+  // SoulGold keeps the official Mega Stones in its item list, but only its type stones and the Bondstone Mega Evolve
+  // anything. With legality checks on, the leftovers are not offered.
+  const deadStone = id => !!X.megaStones && C.pocketOf(D, id) === 'megas' && !X.megaStones.includes(id);
+  const itemOpts = () => OPTS.items || (OPTS.items = D.items.map((n, i) => (i && C.validItem(D, i) && (hax || !deadStone(i)) ? { id: i, label: n } : null)).filter(Boolean));
   const moveOpts = () => OPTS.moves || (OPTS.moves = D.moves.map((n, i) => (i && n ? { id: i, label: n } : null)).filter(Boolean));
   const pocketOpts = key => OPTS['p-' + key] || (OPTS['p-' + key] = itemOpts().filter(o => C.pocketOf(D, o.id) === key));
   const nameIn = (list, id) => (list === 'species' ? spName(id) : (list === 'items' ? D.items[id] : D.moves[id]) || '#' + id);
@@ -959,11 +963,12 @@
       if (list.length > p.cap) { status(`${p.name} is full (${p.cap} different items).`, 'err'); return; }
       setPocket(`Added ${q} × ${D.items[id]}`, list);
     };
-    const all = D.items.map((n, i) => i).filter(i => i && C.validItem(D, i) && C.pocketOf(D, i) === p.key);
+    const all = D.items.map((n, i) => i).filter(i => i && C.validItem(D, i) && C.pocketOf(D, i) === p.key && (hax || !deadStone(i)));
+    const fillNoun = p.key === 'tms' ? 'TM and HM' : { balls: 'ball', berries: 'berry', medicine: 'medicine', megas: 'Mega Stone', battle: 'battle item' }[p.key] || 'item';
     const fillAll = () => {
       const list = items.slice();
       for (const id of all) if (!list.some(x => x.id === id) && list.length < p.cap) list.push({ id, qty: qtyMax === 1 ? 1 : 99 });
-      setPocket(`Added every ${p.name === 'TMs & HMs' ? 'TM and HM' : p.name.toLowerCase().replace(/s$/, '')}`, list);
+      setPocket(`Added every ${fillNoun}`, list);
     };
     // SoulGold's Candy Jar: a key item that stores EXP from battles and turns it into Exp. Candies when used.
     function candyJarCard() {
@@ -1021,8 +1026,9 @@
         h('tbody', {}, rows.length ? rows : h('tr', {}, h('td', { colspan: 3, class: 'note' }, 'This pocket is empty.')),
           h('tr', { class: 'add-row' }, h('td', {}, picker({ id: 'bag-add', value: 0, kind: 'items', options: pocketOpts(p.key), placeholder: `＋ Add an item to ${p.name}`, onPick: addItem })),
             h('td', { class: 'qty' }, addQty), h('td', {})))),
-      p.key !== 'items' && p.key !== 'key' ? h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: fillAll }, p.key === 'tms' ? 'Add every TM and HM' : p.key === 'balls' ? 'Add every ball (99 each)' : 'Add every berry (99 each)')) : null,
-      h('p', { class: 'note' }, p.key === 'key' ? 'Key items can change story events. Only add ones you know are safe for your progress.' : `Up to ${p.cap} different items, ${qtyMax === 1 ? 'one of each' : 'at most 999 of each'}.`));
+      p.key !== 'items' && p.key !== 'key' ? h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: fillAll }, `Add every ${fillNoun}${p.key === 'tms' || qtyMax === 1 ? '' : ' (99 each)'}`)) : null,
+      h('p', { class: 'note' }, p.key === 'key' ? 'Key items can change story events. Only add ones you know are safe for your progress.' : `Up to ${p.cap} different items, ${qtyMax === 1 ? 'one of each' : 'at most 999 of each'}.`),
+      p.key === 'megas' && X.megaStones && !hax ? h('p', { class: 'note' }, `Only the stones that Mega Evolve something in ${G.name} are listed: one for each type, plus the Bondstone. The official stones (Charizardite X, Golisopite and so on) are still in the game's item list but do nothing; RadicalHaX mode lists them.`) : null);
   }
 
   // ── Backups pane ──
