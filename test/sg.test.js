@@ -196,6 +196,27 @@ for (const file of process.argv.slice(2)) {
     assert.throws(() => { const s2 = fresh(); C.writePocket(s2, med, [{ id: 9999, qty: 1 }]); C.build(s2, D); });
   });
 
+  t('Candy Jar EXP reads, edits and saves (XORed with the key, outside the section checksum)', () => {
+    const sv = fresh(), k = C.trainer(sv);
+    assert.ok(C.candyJar(sv) >= 0 && C.candyJar(sv) <= C.CANDY_JAR_MAX);
+    C.setCandyJar(sv, 123456);
+    let back = save(sv);
+    assert.strictEqual(C.candyJar(back), 123456);
+    C.setCandyJar(back, 1e12); assert.strictEqual(C.candyJar(back), C.CANDY_JAR_MAX);
+    back = save(back); assert.strictEqual(C.candyJar(back), C.CANDY_JAR_MAX);
+    C.setCandyJar(back, 0); assert.strictEqual(C.candyJar(save(back)), 0);
+    assert.ok(k);
+  });
+
+  t('Battle Points and Game Corner coins edit and save', () => {
+    const sv = fresh();
+    C.setBp(sv, 1234); C.setCoins(sv, 9999);
+    let back = save(sv);
+    assert.strictEqual(C.bp(back), 1234); assert.strictEqual(C.trainer(back).coins, 9999);
+    C.setBp(back, 99999); assert.strictEqual(C.bp(back), C.BP_MAX);
+    back = save(back); assert.strictEqual(C.bp(back), 9999);
+  });
+
   t('registers owned Pokémon in the Pokédex when saving', () => {
     const sv = fresh(), r = C.boxRef(sv, 4, 4);
     if (!M.empty(r)) C.release(r);

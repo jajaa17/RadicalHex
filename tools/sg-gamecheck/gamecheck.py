@@ -30,7 +30,8 @@ if __name__ == '__main__':
         p1, p2, pp = rd32(mu, sym['P1']), rd32(mu, sym['P2']), rd32(mu, sym['PP'])
         res = {'file': f, 'status': st, 'counter': rd32(mu, sym['counter']), 'init': rd32(mu, sym['initCalled']),
                'sb1': bytes(mu.mem_read(p1, rd32(mu, sym['SZ1']))).hex(), 'sb2': bytes(mu.mem_read(p2, rd32(mu, sym['SZ2']))).hex(),
-               'ps': bytes(mu.mem_read(pp, rd32(mu, sym['SZP']))).hex()}
+               'ps': bytes(mu.mem_read(pp, rd32(mu, sym['SZP']))).hex(),
+               'sb3': bytes(mu.mem_read(rd32(mu, sym['P3']), rd32(mu, sym['SZ3']))).hex()}
         if '--resave' in sys.argv:
             mu, st2 = run(data, 'runSave', mu)
             res['resave_status'] = st2

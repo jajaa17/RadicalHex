@@ -183,7 +183,7 @@
 
   // ── Changes and undo ──
   // The editable buffers of the open save: Radical Red keeps four, SoulGold three (its save blocks and the PC).
-  const parts = () => (sv.game === 'sg' ? ['sb1', 'sb2', 'ps'] : ['data', 'stream', 'raw', 'ext']);
+  const parts = () => (sv.game === 'sg' ? ['sb1', 'sb2', 'sb3', 'ps'] : ['data', 'stream', 'raw', 'ext']);
   const snapshot = () => Object.fromEntries(parts().map(k => [k, sv[k].slice()]));
   const restore = s => { for (const k of parts()) sv[k].set(s[k]); };
   const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
@@ -908,6 +908,22 @@
       for (const id of all) if (!list.some(x => x.id === id) && list.length < p.cap) list.push({ id, qty: qtyMax === 1 ? 1 : 99 });
       setPocket(`Added every ${p.name === 'TMs & HMs' ? 'TM and HM' : p.name.toLowerCase().replace(/s$/, '')}`, list);
     };
+    // SoulGold's Candy Jar: a key item that stores EXP from battles and turns it into Exp. Candies when used.
+    function candyJarCard() {
+      const exp = C.candyJar(sv), jar = D.items.indexOf('Candy Jar');
+      const has = jar > 0 && C.readPocket(sv, C.POCKETS.find(x => x.key === 'key')).some(x => x.id === jar);
+      let left = exp;
+      const candies = [['L', 10000], ['M', 3000], ['S', 800], ['XS', 100]].map(([n, v]) => { const c = Math.min(999, Math.floor(left / v)); left -= c * v; return c ? `${c} × Exp. Candy ${n}` : null; }).filter(Boolean);
+      return h('div', { class: 'card' }, h('h3', {}, 'Candy Jar'),
+        field(`Stored EXP (max ${C.CANDY_JAR_MAX.toLocaleString()})`, h('input', { id: 'tr-candy', type: 'number', min: 0, max: C.CANDY_JAR_MAX, value: exp, onchange: e => {
+          const v = Math.max(0, Math.min(C.CANDY_JAR_MAX, Math.round(+e.target.value) || 0)); e.target.value = v;
+          change(`Set the Candy Jar to ${v.toLocaleString()} EXP`, () => C.setCandyJar(sv, v));
+        } })),
+        h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Filled the Candy Jar', () => C.setCandyJar(sv, C.CANDY_JAR_MAX)) }, 'Max'),
+          h('button', { class: 'btn small', type: 'button', onclick: () => change('Emptied the Candy Jar', () => C.setCandyJar(sv, 0)) }, 'Empty')),
+        h('p', { class: 'note' }, candies.length ? `Using it in the bag now makes about ${candies.join(', ')} (if your bag has room).` : 'It keeps 90% of the EXP from battles. Using it in the bag turns the EXP into Exp. Candies (L 10,000, M 3,000, S 800, XS 100 EXP).'),
+        has ? null : h('p', { class: 'note' }, 'You don\'t have the Candy Jar yet (you get it in the story, after the first Gym). The EXP is kept until you do.'));
+    }
     put($('#pane-trainer'),
       h('div', { class: 'cards' },
         h('div', { class: 'card' }, h('h3', {}, 'Trainer'),
@@ -922,7 +938,13 @@
           } })),
           h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Set money to the maximum', () => C.setMoney(sv, C.MONEY_MAX)) }, 'Max money'),
             h('button', { class: 'btn small', type: 'button', onclick: () => change('Set coins to the maximum', () => C.setCoins(sv, C.COINS_MAX)) }, 'Max coins')),
+          C.bp ? field(`Battle Points (max ${C.BP_MAX.toLocaleString()})`, h('input', { id: 'tr-bp', type: 'number', min: 0, max: C.BP_MAX, value: Math.min(C.bp(sv), C.BP_MAX), onchange: e => {
+            const v = Math.max(0, Math.min(C.BP_MAX, Math.round(+e.target.value) || 0)); e.target.value = v; change(`Set Battle Points to ${v.toLocaleString()}`, () => C.setBp(sv, v));
+          } })) : null,
+          C.bp ? h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: () => change('Set Battle Points to the maximum', () => C.setBp(sv, C.BP_MAX)) }, 'Max BP')) : null,
+          G.key === 'sg' ? h('p', { class: 'note' }, 'Coins are what the Game Corner games use (slots, blackjack, gacha, the derby and the rest). The Rocket Arcade pays out money, and Battle Points buy items at the BP shop.') : null,
           t.money > C.MONEY_MAX ? h('p', { class: 'note' }, `This save currently has ₽${t.money.toLocaleString()}. It is left as is unless you change it.`) : null),
+        C.candyJar ? candyJarCard() : null,
         h('div', { class: 'card' }, h('h3', {}, 'Pokédex'),
           h('dl', { class: 'kv' }, h('dt', {}, 'Seen'), h('dd', {}, String(dx.seen)), h('dt', {}, 'Caught'), h('dd', {}, String(dx.caught))),
           h('button', { class: 'btn small', type: 'button', style: 'justify-self:start', onclick: () => change('Registered every Pokémon you own in the Pokédex', () => {

@@ -24,8 +24,8 @@ for (const m of main.match(/require\('\.\/[^']+'\)/g) || []) assert.ok(pkg.build
 assert.ok(main.includes('contextIsolation: true') && main.includes('nodeIntegration: false') && main.includes('sandbox: true'), 'window isolation');
 // Undo and failed edits must restore every part of the save the editor writes, boxes 23-25 (sv.ext) included.
 const appJs = fs.readFileSync(path.join(root, 'src/app.js'), 'utf8');
-// Undo covers every editable buffer of both save layouts (Radical Red: data, stream, raw, ext; SoulGold: sb1, sb2, ps).
-assert.ok(appJs.includes(`sv.game === 'sg' ? ['sb1', 'sb2', 'ps'] : ['data', 'stream', 'raw', 'ext']`) && appJs.includes('sv[k].slice()') && appJs.includes('sv[k].set(s[k])'), 'undo snapshot covers every part of both save layouts');
+// Undo covers every editable buffer of both save layouts (Radical Red: data, stream, raw, ext; SoulGold: sb1, sb2, sb3, ps).
+assert.ok(appJs.includes(`sv.game === 'sg' ? ['sb1', 'sb2', 'sb3', 'ps'] : ['data', 'stream', 'raw', 'ext']`) && appJs.includes('sv[k].slice()') && appJs.includes('sv[k].set(s[k])'), 'undo snapshot covers every part of both save layouts');
 for (const f of ['src/app.js', 'src/core.js', 'src/sg-core.js']) assert.ok(!/require\(['"](fs|child_process)/.test(fs.readFileSync(path.join(root, f), 'utf8')), `${f} must not touch the disk`);
 // The PID solver must hit every nature/shiny combination quickly.
 for (let n = 0; n < 25; n++) for (const shiny of [true, false]) {

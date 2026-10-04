@@ -12,7 +12,8 @@ void *gHoFSaveBuffer = NULL;
 u32 *gTrainerHillVBlankCounter = NULL;
 bool8 gSoftResetDisabled;
 const u32 SZ1 = sizeof(sb1), SZ2 = sizeof(sb2), SZP = sizeof(ps);
-u8 *const P1 = (u8*)&sb1, *const P2 = (u8*)&sb2, *const PP = (u8*)&ps;
+u8 *const P1 = (u8*)&sb1, *const P2 = (u8*)&sb2, *const PP = (u8*)&ps, *const P3 = (u8*)&gSaveblock3;
+const u32 SZ3 = sizeof(gSaveblock3);
 void *memcpy(void *d, const void *s, unsigned n) { u8 *a = d; const u8 *b = s; while (n--) *a++ = *b++; return d; }
 void *memset(void *d, int c, unsigned n) { u8 *a = d; while (n--) *a++ = c; return d; }
 u32 ReadFlash(u16 sector, u32 offset, void *dest, u32 size) { memcpy(dest, flash + sector * 0x1000 + offset, size); return 0; }

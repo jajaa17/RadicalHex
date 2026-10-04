@@ -25,6 +25,11 @@
   const KEY = 0xB4;
   const FLAG_RELEASE_SHINY_ODDS = 0x95E, SHINY_ODDS = 512, RELEASE_SHINY_ODDS = 256;
   const MONEY_MAX = 9999999, COINS_MAX = 9999, EV_CAP = 252, EV_TOTAL = 510;
+  // SaveBlock3 rides in the 116 spare bytes after each section's data; it is 100 bytes, so it all sits in section 0.
+  // The Candy Jar's stored EXP is SaveBlock3's candyJarExp (offset 0x60), XORed with the save's key like money.
+  const SB3_SIZE = 100, CANDY_JAR = 0x60, CANDY_JAR_MAX = 99999999;
+  // Battle Points (BP Mart, battle facilities): SaveBlock2 frontier.battlePoints, a plain u16.
+  const BP = 0xA94, BP_MAX = 9999;
   // Bag pockets in SaveBlock1 order. key = the pocket an item belongs to (from the game's item table).
   const POCKETS = (() => {
     const list = [['items', 'Items', 150, 999], ['medicine', 'Medicine', 65, 999], ['key', 'Key Items', 50, 1], ['balls', 'Poké Balls', 27, 999],
@@ -152,6 +157,7 @@
     }
     const sec = use.sec, ov = (30 + use.k) * SECTOR, aux = (28 + use.k) * SECTOR;
     const sb2 = data.slice(sec[0], sec[0] + SB2_SIZE);
+    const sb3 = data.slice(sec[0] + DATA, sec[0] + DATA + SB3_SIZE);
     const sb1 = new Uint8Array(SB1_SIZE);
     for (let i = 1; i <= 4; i++) sb1.set(data.subarray(sec[i], sec[i] + SIZE[i]), (i - 1) * DATA);
     const ps = new Uint8Array(PS_SIZE);
@@ -163,7 +169,7 @@
     if (pc > 6) throw new Error('The party count in this save is invalid, so RadicalHex will not edit it.');
     const flags = sb1.subarray(FLAGS);
     const odds = (flags[FLAG_RELEASE_SHINY_ODDS >> 3] >> (FLAG_RELEASE_SHINY_ODDS & 7)) & 1 ? RELEASE_SHINY_ODDS : SHINY_ODDS;
-    return { game: 'sg', data, sec, slot: use.k, ov, aux, sb1, sb2, ps, odds, saveIndex: use.counter, newerDamaged, original: new Uint8Array(input) };
+    return { game: 'sg', data, sec, slot: use.k, ov, aux, sb1, sb2, sb3, ps, odds, saveIndex: use.counter, newerDamaged, original: new Uint8Array(input) };
   }
 
   // ── Save ──
@@ -179,6 +185,7 @@
     w16(ps, BOX18_SUM, s18); w16(ps, BOX18_SUM + 2, (~s18) & 0xFFFF);
     const sec = sv.sec;
     out.set(sv.sb2, sec[0]);
+    out.set(sv.sb3, sec[0] + DATA); // not covered by the section checksum (as in the game)
     for (let i = 1; i <= 4; i++) out.set(sb1.subarray((i - 1) * DATA, (i - 1) * DATA + SIZE[i]), sec[i]);
     for (let i = 5; i <= 13; i++) out.set(ps.subarray((i - 5) * DATA, (i - 4) * DATA), sec[i]);
     for (let i = 0; i < 14; i++) w16(out, sec[i] + 0xFF6, checksum(out, sec[i], SIZE[i]));
@@ -205,6 +212,7 @@
     sb1Range(BAG, BAG + POCKETS.reduce((n, p) => n + p.cap * 4, 0));
     sb1Range(DEX_SEEN, DEX_CAUGHT + DEX_BYTES);
     sb1Range(SB1_TAIL, SB1_TAIL + 1944);
+    r.push([s[0] + DATA + CANDY_JAR, s[0] + DATA + CANDY_JAR + 4], [s[0] + BP, s[0] + BP + 2]);
     for (let i = 5; i <= 13; i++) r.push([s[i], s[i] + DATA]);
     for (let i = 0; i < 14; i++) r.push([s[i] + 0xFF6, s[i] + 0xFF8]);
     r.push([sv.ov, sv.ov + DATA], [sv.ov + 0xFF6, sv.ov + 0xFF8]);
@@ -573,6 +581,11 @@
   }
   const setMoney = (sv, v) => w32(sv.sb1, MONEY, (Math.max(0, Math.min(MONEY_MAX, v)) ^ key(sv)) >>> 0);
   const setCoins = (sv, v) => w16(sv.sb1, COINS, (Math.max(0, Math.min(COINS_MAX, v)) ^ key(sv)) & 0xFFFF);
+  const bp = sv => u16(sv.sb2, BP);
+  const setBp = (sv, v) => w16(sv.sb2, BP, Math.max(0, Math.min(BP_MAX, Math.floor(v) || 0)));
+  // The Candy Jar (a key item): EXP it has stored from battles, turned into Exp. Candies when used.
+  const candyJar = sv => (u32(sv.sb3, CANDY_JAR) ^ key(sv)) >>> 0;
+  const setCandyJar = (sv, v) => w32(sv.sb3, CANDY_JAR, (Math.max(0, Math.min(CANDY_JAR_MAX, Math.floor(v) || 0)) ^ key(sv)) >>> 0);
 
   // ── Bag (quantities are XORed with the save's key, as in every pocket of the game's bag) ──
   function readPocket(sv, p) {
@@ -863,7 +876,7 @@
   }
 
   const api = {
-    GAME: 'sg', BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
+    GAME: 'sg', BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, CANDY_JAR_MAX, candyJar, setCandyJar, BP_MAX, bp, setBp, natureEffect,
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
