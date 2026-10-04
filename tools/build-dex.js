@@ -155,6 +155,8 @@ const dex = {
   types: Object.values(types).sort((a, b) => a.ID - b.ID).map(t => ({ id: t.ID, n: t.name, c: t.color })),
   species: outSpecies,
   areas, methods, enc, metNames, caps,
+  // What each ability does (Radical Red's own descriptions), by every name it is shown under.
+  abd: Object.fromEntries(Object.values(abilities).flatMap(a => (a && a.description ? a.names.map(n => [n, a.description]) : []))),
   // Type of each move (by move id, -1 for none), for the move lists.
   mt: Array.from({ length: Math.max(...Object.keys(moves).map(Number)) + 1 }, (_, i) => (moves[i] ? moves[i].type : -1)),
   // Category of each move: 0 physical, 1 special, 2 status (-1 for none).

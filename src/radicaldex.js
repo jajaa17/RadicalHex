@@ -118,9 +118,12 @@ window.RHDexView = function (ui) {
     const where = own.bySpecies.get(id) || [];
     const sv = ui.save();
     const dexState = sv && s.nat <= C.NATIONAL_DEX ? (C.dex.caught(sv, s.nat) ? 'Caught' : C.dex.seen(sv, s.nat) ? 'Seen' : 'Not seen') : null;
-    const abil = s.ab.map((a, i) => (a ? h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, ['Ability 1', 'Ability 2', 'Hidden ability'][i]), h('span', {}, a)) : null));
+    // Each ability with what it does, from the game's own descriptions.
+    const abRow = (label, a) => h('div', { class: 'kv-row ab-row' }, h('span', { class: 'muted' }, label), h('span', {}, a),
+      X.abd && X.abd[a] ? h('span', { class: 'ab-desc' }, X.abd[a]) : null);
+    const abil = s.ab.map((a, i) => (a ? abRow(['Ability 1', 'Ability 2', 'Hidden ability'][i], a) : null));
     // SoulGold gives every Pokémon extra always-on abilities ("innates") besides its normal one.
-    if (s.inn && s.inn.length) abil.push(h('div', { class: 'kv-row' }, h('span', { class: 'muted' }, s.inn.length > 1 ? 'Innates' : 'Innate'), h('span', {}, s.inn.join(', '))));
+    if (s.inn && s.inn.length) s.inn.forEach(a => abil.push(abRow('Innate', a)));
     const pic = sprite(id, shiny, innerWidth < 1180 || innerHeight < 700 ? 96 : 144);
     return h('div', { class: 'dex-detail' },
       h('div', { class: 'dex-hero' },

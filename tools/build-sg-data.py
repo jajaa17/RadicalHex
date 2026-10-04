@@ -179,6 +179,26 @@ moves = [('' if n in ('-', '') else n) for n in moves]
 CUR[0] = FILES['pokemon']
 AB, abb = P['AbilityInfo'], CUR[0]['gAbilitiesInfo']
 abilities = [text(abb['data'], i * AB + P['AbilityInfo__name'], 17) if i else '' for i in range(P['ABILITIES_COUNT'])]
+
+
+def desc_at(blob, off):
+    # Game text with its line breaks (0xFE) and scroll/wait codes (0xFA, 0xFB) read as spaces.
+    r = ref(blob, off)
+    s = sym(r) if r else None
+    if not s:
+        return ''
+    d = bytes(0 if c in (0xFA, 0xFB, 0xFE) else c for c in s['data'])
+    return re.sub(r'\b(\w+) \1\b', r'\1', ' '.join(text(d).split()))  # the game has one doubled word (Intimidate's "of of")
+
+
+# What each ability does: the longer description where the game has one.
+ability_desc = {}
+for i in range(1, P['ABILITIES_COUNT']):
+    n = abilities[i]
+    if n and not n.startswith('---') and n not in ability_desc:
+        dsc = desc_at(abb, i * AB + P['AbilityInfo__longDescription']) or desc_at(abb, i * AB + P['AbilityInfo__description'])
+        if dsc:
+            ability_desc[n] = dsc
 abilities = [('' if n.startswith('---') else n) for n in abilities]
 
 CUR[0] = FILES['item']
@@ -548,6 +568,7 @@ caps = [{'n': n, 'normal': lv, 'hardcore': lv} for n, lv in [
 dex = {'types': [{'id': k, 'n': n, 'c': TYPE_COLORS.get(n, '#888')} for k, n in enumerate(TYPES) if k],
        'species': {str(k): v for k, v in out_dex.items()}, 'areas': areas, 'methods': methods,
        'enc': {str(k): v for k, v in enc.items()}, 'metNames': {str(k): v for k, v in met_names.items()}, 'caps': caps,
+       'abd': ability_desc,
        'megaStones': sorted({items.index(m[2]) for m in megas if m[2] and m[2] in items}),  # the stones that Mega Evolve something
        'mt': [t if moves[i] else -1 for i, t in enumerate(move_type)], 'ms': [c if moves[i] else -1 for i, c in enumerate(move_cat)]}
 open(os.path.join(OUT, 'sg-dex.js'), 'w', encoding='utf8').write(

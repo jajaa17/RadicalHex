@@ -115,6 +115,14 @@
     return (X.mt && typeMap.get(X.mt[id])) || null;
   };
   const moveInfo = id => { const t = moveType(id), c = X.ms ? CATS[X.ms[id]] : null; return [t ? t.n : '', c || ''].filter(Boolean).join(' · '); };
+  // A species' one or two types, small, for the species list.
+  function speciesTag(id) {
+    const x = X.species[id];
+    if (!x) return null;
+    if (typeMapFor !== X) moveType(0);
+    const ts = x.t.map(t => typeMap.get(t)).filter(Boolean);
+    return ts.length ? h('span', { class: 'mtag' }, ts.map(t => h('span', { class: 'mtype', style: `--type:${t.c}` }, t.n))) : null;
+  }
   function moveTag(id) {
     const t = moveType(id), c = X.ms ? CATS[X.ms[id]] : null;
     if (!id || (!t && !c)) return null;
@@ -130,12 +138,12 @@
       kind === 'moves' && value ? moveTag(value) : null,
       value ? h('span', { class: 'pick-id' }, '#' + value) : null,
       h('span', { class: 'pick-caret', 'aria-hidden': 'true' }, '▾'));
-    btn.addEventListener('click', () => openList(btn, value, none ? [{ id: 0, label: none }, ...options] : options, icon, onPick, kind === 'moves' ? moveTag : null));
+    btn.addEventListener('click', () => openList(btn, value, none ? [{ id: 0, label: none }, ...options] : options, icon, onPick, kind === 'moves' ? moveTag : kind === 'species' ? speciesTag : null, kind));
     return btn;
   }
   let pop = null;
   const closeList = () => { if (pop) { pop.remove(); pop = null; } };
-  function openList(btn, value, all, icon, onPick, tag = null) {
+  function openList(btn, value, all, icon, onPick, tag = null, kind = '') {
     closeList();
     const search = h('input', { type: 'text', class: 'pop-search', placeholder: 'Scroll the list, or type to filter', 'aria-label': 'Filter the list', autocomplete: 'off' });
     const list = h('div', { class: 'pop-list', role: 'listbox' });
@@ -159,7 +167,8 @@
       const q = squash(search.value), n = search.value.replace(/\D/g, '');
       shown = all.filter(o => (!letter || (letter === '#' ? !/^[a-z]/i.test(o.label) : o.label[0].toUpperCase() === letter))
         && (!q || squash(o.label).includes(q) || (n && String(o.id) === n))
-        && (!o.id || ((mType < 0 || X.mt[o.id] === mType) && (mCat < 0 || X.ms[o.id] === mCat))));
+        && (!o.id || (kind === 'species' ? (mType < 0 || (X.species[o.id] && X.species[o.id].t.includes(mType)))
+          : kind !== 'moves' || ((mType < 0 || X.mt[o.id] === mType) && (mCat < 0 || X.ms[o.id] === mCat)))));
       active = 0; draw(); list.scrollTop = 0;
       for (const b of letters.children) b.setAttribute('aria-pressed', String(b.dataset.l === letter));
     };
@@ -181,12 +190,12 @@
     });
     // Move lists: filter by type (only the types in this list, with how many) and by category.
     let mType = -1, mCat = -1, moveBar = null;
-    if (tag && X.mt && X.ms) {
-      const counts = new Map();
-      for (const o of all) if (o.id) counts.set(X.mt[o.id], (counts.get(X.mt[o.id]) || 0) + 1);
-      const typeSel = h('select', { class: 'pop-type', 'aria-label': 'Move type', onmousedown: e => e.stopPropagation(), onchange: e => { mType = +e.target.value; refilter(); search.focus(); } },
+    if ((kind === 'moves' && X.mt && X.ms) || kind === 'species') {
+      const counts = new Map(), typesOf = id => (kind === 'species' ? (X.species[id] ? X.species[id].t : []) : [X.mt[id]]);
+      for (const o of all) if (o.id) for (const t of typesOf(o.id)) counts.set(t, (counts.get(t) || 0) + 1);
+      const typeSel = h('select', { class: 'pop-type', 'aria-label': kind === 'species' ? 'Pokémon type' : 'Move type', onmousedown: e => e.stopPropagation(), onchange: e => { mType = +e.target.value; refilter(); search.focus(); } },
         h('option', { value: -1 }, 'All types'), (X.types || []).filter(t => counts.has(t.id)).map(t => h('option', { value: t.id }, `${t.n} (${counts.get(t.id)})`)));
-      const cats = h('div', { class: 'pop-cats' }, ['All', ...CATS].map((c, k) =>
+      const cats = kind !== 'moves' ? null : h('div', { class: 'pop-cats' }, ['All', ...CATS].map((c, k) =>
         h('button', { type: 'button', class: 'pop-letter', 'aria-pressed': String(k === 0), onmousedown: e => {
           e.preventDefault(); mCat = k - 1; for (const b of cats.children) b.setAttribute('aria-pressed', String(b === e.currentTarget)); refilter();
         } }, c)));
@@ -289,11 +298,11 @@
   }
 
   // ── Selection ──
-  // Ctrl+click (like PKHeX) on level, friendship, an IV or an EV sets it to the most it can be.
+  // Ctrl+click (like PKHeX) on level, friendship, an IV, an EV, an item quantity, money, coins, BP or the Candy Jar sets it to the most it can be.
   const MAX_TIP = 'Ctrl+click to max it';
   document.addEventListener('click', e => {
     const t = e.target;
-    if (!(e.ctrlKey || e.metaKey) || !(t instanceof HTMLInputElement) || t.disabled || !/^(ed|add)-(level|fr|iv\d|ev\d)$/.test(t.id)) return;
+    if (!(e.ctrlKey || e.metaKey) || !(t instanceof HTMLInputElement) || t.disabled || !/^((ed|add)-(level|fr|iv\d|ev\d)|bagq-.+|bag-add-qty|tr-(money|coins|bp|candy))$/.test(t.id)) return;
     e.preventDefault();
     if (t.value === t.max) return;
     t.value = t.max;
@@ -545,7 +554,7 @@
           h('span', { class: 'chip' }, ['♂', '♀', '⚲'][g]),
           h('span', { class: 'chip' }, C.NATURES[M.nature(r)]),
           M.shiny(r) ? h('span', { class: 'chip accent' }, '★ Shiny') : null,
-          C.abilityName(X, r) ? h('span', { class: 'chip', title: ['Ability 1', 'Ability 2', 'Hidden ability'][M.abilityIndex(r)] }, C.abilityName(X, r))
+          C.abilityName(X, r) ? h('span', { class: 'chip', title: ['Ability 1', 'Ability 2', 'Hidden ability'][M.abilityIndex(r)] + (X.abd && X.abd[C.abilityName(X, r)] ? ': ' + X.abd[C.abilityName(X, r)] : '') }, C.abilityName(X, r))
             : M.hiddenAbility(r) ? h('span', { class: 'chip' }, 'Hidden ability') : null,
           M.isEgg(r) ? h('span', { class: 'chip' }, 'Egg') : null,
           h('span', { class: 'chip' }, C.BALLS[M.ball(r)] || 'Ball ?'))));
@@ -598,14 +607,8 @@
     const sp = M.species(r), ratio = C.genderRatio(D, sp), fixedGender = ratio === 0 || ratio >= 254, g = C.genderOf(D, r);
     const lv = C.levelOf(D, r);
     return [h('div', { class: 'form' },
-      field('Species', picker({ id: 'ed-species', value: sp, options: speciesOpts(), icon: spriteIcon, kind: 'species', onPick: id => {
-        const L = C.levelOf(D, r), wasDefault = M.nickname(r) === C.defaultNickname(D, sp);
-        edit(r, `Changed species to ${spName(id)}`, () => {
-          M.setSpecies(r, id);
-          if (L && C.growth(D, id)) C.setLevel(D, r, L); // keep the level on the new growth curve
-          if (wasDefault) M.setNickname(r, C.defaultNickname(D, id));
-        }, { full: true });
-      } }), ' wide'),
+      field('Species', picker({ id: 'ed-species', value: sp, options: speciesOpts(), icon: spriteIcon, kind: 'species', onPick: id => changeSpecies(r, id, `Changed species to ${spName(id)}`) }), ' wide'),
+      evoRow(r),
       field('Nickname', h('input', { id: 'ed-nick', type: 'text', maxlength: C.NICK_LEN || 10, value: M.nickname(r), onchange: e => {
         const v = e.target.value.trim() || C.defaultNickname(D, sp);
         if (!C.encodeText(v, C.NICK_LEN || 10)) { e.target.classList.add('bad'); status('That nickname uses a character the game cannot show.', 'err'); return; }
@@ -679,6 +682,53 @@
         edit(r, id ? 'Taught ' + D.moves[id] : 'Removed a move', () => M.setMoves(r, next, D), { full: true });
       } }), ' wide'))),
     h('p', { class: 'note' }, moveNote(sp) + ' Changing a move refills its PP and removes PP Ups for that slot.')];
+  }
+
+  // A new species keeps the level (on the new growth curve), and a nickname that was the species name follows it.
+  function changeSpecies(r, id, what) {
+    const sp = M.species(r), L = C.levelOf(D, r), wasDefault = M.nickname(r) === C.defaultNickname(D, sp);
+    edit(r, what, () => {
+      M.setSpecies(r, id);
+      if (L && C.growth(D, id)) C.setLevel(D, r, L);
+      if (wasDefault) M.setNickname(r, C.defaultNickname(D, id));
+    }, { full: true });
+  }
+  // Evolution: the next stages (one per species, methods joined) and the previous one. Megas and other form changes
+  // are battle-only and left out.
+  function evolutions(sp) {
+    const out = new Map();
+    for (const [to, how, form] of (X.species[sp] ? X.species[sp].evo : [])) {
+      if (form || !X.species[to] || !addable(to) || to === sp) continue;
+      out.set(to, out.has(to) ? out.get(to) + ' or ' + how : how);
+    }
+    return [...out].map(([to, how]) => ({ to, how }));
+  }
+  const preEvolution = sp => Object.keys(X.species).map(Number).find(id => id !== sp && addable(id) && X.species[id].evo.some(e => !e[2] && e[0] === sp));
+  function evoRow(r) {
+    const sp = M.species(r);
+    if (M.isEgg(r) || !X.species[sp]) return null;
+    const next = evolutions(sp), prev = preEvolution(sp);
+    if (!next.length && !prev) return null;
+    const evolve = to => changeSpecies(r, to, `Evolved ${M.nickname(r) || spName(sp)} into ${spName(to)}`);
+    return h('div', { class: 'row evo-actions' },
+      next.length === 1 ? h('button', { id: 'ed-evolve', class: 'btn small', type: 'button', title: next[0].how, onclick: () => evolve(next[0].to) }, `Evolve into ${spName(next[0].to)}`)
+        : next.length ? h('button', { id: 'ed-evolve', class: 'btn small', type: 'button', onclick: async () => { const to = await pickEvolution(sp, next); if (to) evolve(to); } }, `Evolve… (${next.length} choices)`) : null,
+      prev ? h('button', { id: 'ed-devolve', class: 'btn small', type: 'button', onclick: () => changeSpecies(r, prev, `Devolved ${M.nickname(r) || spName(sp)} into ${spName(prev)}`) }, `Devolve to ${spName(prev)}`) : null);
+  }
+  // Branching evolutions (Eevee, Rockruff, Tyrogue...): pick one, each with its sprite and how it evolves.
+  function pickEvolution(sp, options) {
+    return new Promise(resolve => {
+      const done = v => { d.close(); d.remove(); resolve(v); };
+      const d = h('dialog', { class: 'card evo-dialog' },
+        h('h3', {}, `Evolve ${spName(sp)}`),
+        h('p', { class: 'note' }, 'Choose what it evolves into. Its level, nature, IVs, EVs, moves and nickname are kept.'),
+        h('div', { class: 'evo-choices' }, options.map(o => h('button', { type: 'button', class: 'evo-choice', onclick: () => done(o.to) },
+          sprite(o.to, false, 64), h('strong', {}, spName(o.to)), h('span', { class: 'note' }, o.how)))),
+        h('div', { class: 'row', style: 'justify-content:flex-end' }, h('button', { class: 'btn', type: 'button', onclick: () => done(0) }, 'Cancel')));
+      d.addEventListener('cancel', () => { d.remove(); resolve(0); });
+      document.body.append(d);
+      d.showModal();
+    });
   }
 
   // Highest EV stat i can have next to the others: 252 per stat and 510 in total, like the game.
@@ -993,7 +1043,7 @@
       h('td', {}, picker({ id: `bag-${p.key}-${k}`, value: it.id, kind: 'items', options: pocketOpts(p.key).filter(o => o.id === it.id || !items.some(x => x.id === o.id)), onPick: id => {
         const list = items.slice(); list[k] = { id, qty: Math.min(it.qty, qtyMax) }; setPocket(`Changed to ${D.items[id]}`, list);
       } })),
-      h('td', { class: 'qty' }, h('input', { id: `bagq-${p.key}-${k}`, type: 'number', min: 1, max: qtyMax, value: it.qty, disabled: qtyMax === 1, onchange: e => {
+      h('td', { class: 'qty' }, h('input', { id: `bagq-${p.key}-${k}`, type: 'number', title: MAX_TIP, min: 1, max: qtyMax, value: it.qty, disabled: qtyMax === 1, onchange: e => {
         const q = Math.max(1, Math.min(qtyMax, Math.round(+e.target.value) || 1)); const list = items.slice(); list[k] = { id: it.id, qty: q };
         setPocket(`Set ${D.items[it.id]} to ${q}`, list);
       } })),

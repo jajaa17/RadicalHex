@@ -66,7 +66,9 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 - **Origin** (like PKHeX): original trainer name, gender, trainer ID and secret ID, met location and met level, plus **Make it mine** to give it your trainer details. Changing the IDs keeps it shiny or not shiny. The met location list puts the places where that Pokémon's evolution family is found in Radical Red first. With legality checks on, the met level can't go above its level and the OT needs a name. RadicalHaX mode allows any location number and met level
 - **Moves** list only what the species can learn in Radical Red (level-up, TM, tutor, egg and pre-evolution moves), and not moves it already knows. Moves it learns by levelling up later show their level, e.g. "Bounce · Lv 39". In RadicalHaX mode every move is listed
 - **EVs** stop at the game's limits: 252 per stat and 510 in total. The arrows stop there, and a bigger number you type is lowered to what is left. RadicalHaX mode allows up to 255 with no total
-- **Ctrl+click shortcuts** (like PKHeX): Ctrl+click Level, Friendship, an IV or an EV to max it (EVs stop at what the 252/510 limits leave). With a Pokémon selected, Ctrl+click an empty box slot or party slot to drop a copy of it there
+- **Ctrl+click shortcuts** (like PKHeX): Ctrl+click Level, Friendship, an IV, an EV, an item quantity, money, coins, Battle Points or the Candy Jar to max it (EVs stop at what the 252/510 limits leave). With a Pokémon selected, Ctrl+click an empty box slot or party slot to drop a copy of it there
+- **Evolve and Devolve** buttons under Species: one click for a single next stage (Charmander → Charmeleon), or a picker with each choice's sprite and evolution method for branching Pokémon (Eevee, Rockruff, Tyrogue...). Level, nature, IVs, EVs, moves and a custom nickname are kept
+- **Species list filtered by type**, with each Pokémon's types shown next to it
 - **Move types and categories**: every move list, move slot and party card shows the move's type and whether it is Physical, Special or Status. Move lists can be filtered by type (only the types that Pokémon can learn, with how many of each) and by Physical, Special or Status
 - **Minimal Grinding mode** is detected. In a Minimal Grinding save the game keeps every IV at 31 and gives no EVs, so RadicalHex locks IVs at 31 and EVs at 0 (in the editor, the Add form and Showdown imports), shows the mode on the Trainer tab, and warns about any Pokémon that doesn't match, with a one-click fix. RadicalHaX mode unlocks them
 - Items show Radical Red's own bag icons everywhere: held items, the bag and every item list
@@ -91,7 +93,7 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 
 A Pokédex built from Radical Red's own data, so it matches the hack rather than the official games:
 - Every species and form, with sprites, filter by name, number, type, **generation** (by National Dex number) and **location** (every route and area in story order), and "only Pokémon in my save". Click a place in a Pokémon's location table to list everything found there. The SoulDex has the same filters with SoulGold's own routes
-- Types, base stats and abilities (ability 1, ability 2 and hidden ability) as they are in Radical Red
+- Types, base stats and abilities (ability 1, ability 2 and hidden ability) as they are in Radical Red, each with **what it does** (the game's own description; the SoulDex uses SoulGold's longer ones, for innates too)
 - **Where to find it:** every location, method (grass by day or night, surfing, fishing rods, Rock Smash, gifts, trades, overworld, roaming, raids), levels and encounter chance
 - **Evolution tree** with Radical Red's evolution methods
 - **Mega Evolutions and form changes**, such as Primal Groudon with the Red Orb

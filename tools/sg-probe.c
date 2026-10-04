@@ -18,7 +18,7 @@ O(MoveInfo,name) O(MoveInfo,description) O(MoveInfo,pp)
 O(RegionMapLocation,name)
 O(LevelUpMove,move) O(LevelUpMove,level)
 O(Evolution,method) O(Evolution,param) O(Evolution,targetSpecies)
-O(AbilityInfo,name)
+O(AbilityInfo,name) O(AbilityInfo,description) O(AbilityInfo,longDescription)
 const unsigned K_NUM_SPECIES = NUM_SPECIES, K_ITEMS_COUNT = ITEMS_COUNT, K_MOVES_COUNT = MOVES_COUNT, K_ABILITIES_COUNT = ABILITIES_COUNT, K_MAPSEC_COUNT = MAPSEC_COUNT, K_MAPSEC_NONE = MAPSEC_NONE, K_NUM_ABILITY_SLOTS = NUM_ABILITY_SLOTS, K_MAX_MON_INNATES_INTERNAL = MAX_MON_INNATES_INTERNAL, K_EVOLUTIONS_END = EVOLUTIONS_END, K_LEVEL_UP_MOVE_END = LEVEL_UP_MOVE_END, K_NATIONAL_DEX_COUNT = NATIONAL_DEX_COUNT, K_SPECIES_EGG = SPECIES_EGG, K_MOVE_UNAVAILABLE = MOVE_UNAVAILABLE, K_FORM_SPECIES_END = FORM_SPECIES_END;
 const struct SpeciesInfo B_natDexNum = {.natDexNum = 0xFFFF};
 const struct SpeciesInfo B_isMega = {.isMegaEvolution = 1};

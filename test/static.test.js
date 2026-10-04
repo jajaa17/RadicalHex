@@ -154,3 +154,11 @@ assert.strictEqual(D.items[534], 'Charizardite X');
 assert.ok(JSON.stringify(X.species[6].evo).includes('with the Charizardite X'));
 { const { opts } = C.fromShowdown(D, 'Charizard @ Charizardite X\n- Flamethrower', X); assert.strictEqual(opts.item, 534, 'Showdown import with the official name'); }
 console.log('item name checks passed');
+// Ability descriptions for every ability a Pokémon can have, in both games.
+for (const [x, g] of [[X, 'Radical Red'], [SX, 'SoulGold']]) {
+  const used = new Set(Object.values(x.species).flatMap(s => [...s.ab, ...(s.inn || [])]).filter(Boolean));
+  for (const a of used) assert.ok(x.abd[a] && x.abd[a].length > 5, `${g}: ${a} has a description`);
+  assert.ok(/Attack/.test(x.abd.Intimidate), g + ' Intimidate');
+}
+assert.ok(!/ of of /.test(SX.abd.Intimidate));
+console.log('ability description checks passed');
