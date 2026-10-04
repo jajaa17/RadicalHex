@@ -89,19 +89,39 @@
   function load(input) {
     if (!input || input.length < 0x20000) throw new Error('This file is too small to be a GBA save (it must be at least 128 KB).');
     const data = new Uint8Array(input);
-    const sec = Array(14).fill(-1), idx = Array(14).fill(0);
-    for (let s = 0; s < 32; s++) {
-      const o = s * 0x1000;
-      if (((u32(data, o + 0xFF8) & 0xFFFFFF00) >>> 0) !== 0x08012000) continue;
-      const id = u16(data, o + 0xFF4);
-      if (id >= 14) continue;
+    // The game keeps two save slots (sectors 0-13 and 14-27) and picks one the way CFRU's GetSaveValidStatus does:
+    // a slot counts only if all 14 sections are in it with valid checksums, and the slot with the higher save counter
+    // wins. Sectors outside the slots, and stray or half-written sectors in the other slot (an emulator can write the
+    // file while the game is saving), are ignored, as the game ignores them.
+    const slots = [0, 1].map(k => {
+      const sec = Array(14).fill(-1), idx = Array(14).fill(0);
+      let counter = 0, signed = false;
+      for (let i = 0; i < 14; i++) {
+        const o = (k * 14 + i) * 0x1000;
+        if (((u32(data, o + 0xFF8) & 0xFFFFFF00) >>> 0) !== 0x08012000) continue;
+        signed = true;
+        const id = u16(data, o + 0xFF4);
+        if (id >= 14 || checksum(data, o, WIN[id]) !== u16(data, o + 0xFF6)) continue;
+        sec[id] = o; idx[id] = counter = u32(data, o + 0xFFC); // a later copy of a section replaces an earlier one, as in the game
+      }
+      return { sec, idx, counter, signed, ok: sec.every(o => o >= 0) };
+    });
+    const [a, b] = slots;
+    if (!a.signed && !b.signed) throw new Error('This is not a Radical Red save: some save sections are missing. Use the .sav/.srm battery save, not a save state.');
+    if (!a.ok && !b.ok) throw new Error('This is not a Radical Red 4.1 save: the section checksums do not match (vanilla FireRed, another hack, or a damaged file).');
+    const newer = (x, y) => ((x === 0xFFFFFFFF && y === 0) || (x === 0 && y === 0xFFFFFFFF)) ? (x + 1) >>> 0 > (y + 1) >>> 0 : x > y;
+    const use = !b.ok ? a : !a.ok ? b : newer(b.counter, a.counter) ? b : a;
+    const { sec, idx } = use, skip = use === a ? b : a;
+    // The other slot holds a newer save that is incomplete or damaged (the game was still saving, or the file is
+    // damaged there). The game loads the previous, complete save then, and so does RadicalHex, but it says so.
+    let newerDamaged = null;
+    for (let i = 0; i < 14; i++) {
+      const o = (skip === a ? i : 14 + i) * 0x1000;
+      if (((u32(data, o + 0xFF8) & 0xFFFFFF00) >>> 0) !== 0x08012000 || u16(data, o + 0xFF4) >= 14) continue;
       const n = u32(data, o + 0xFFC);
-      if (sec[id] < 0 || n >= idx[id]) { sec[id] = o; idx[id] = n; }
+      if (newer(n, use.counter) && (newerDamaged === null || newer(n, newerDamaged))) newerDamaged = n;
     }
-    if (sec.some(o => o < 0)) throw new Error('This is not a Radical Red save: some save sections are missing. Use the .sav/.srm battery save, not a save state.');
-    if (sec.some((o, id) => checksum(data, o, WIN[id]) !== u16(data, o + 0xFF6)))
-      throw new Error('This is not a Radical Red 4.1 save: the section checksums do not match (vanilla FireRed, another hack, or a damaged file).');
-    if (new Set(idx).size !== 1) throw new Error('The save sections disagree about which save is newest. The file may be damaged, so RadicalHex will not edit it.');
+    if (new Set(idx).size !== 1) throw new Error('The newest save in this file was only partly written (its sections come from different saves), so RadicalHex will not edit it. Load the save in the game, save again, and close the game before opening it here.');
     const pc = u32(data, sec[1] + 0x34);
     if (pc > 6) throw new Error('The party count in this save is invalid, so RadicalHex will not edit it.');
     const stream = new Uint8Array(STREAM_SIZE);
@@ -112,7 +132,7 @@
     raw.set(data.subarray(rawFile(0xFF0), rawFile(0xFF0) + RAW_BOX_SIZE - RAW_FIRST), RAW_FIRST);
     const ext = new Uint8Array(EXT_SIZE);
     for (let i = 0; i < EXT_SIZE; i++) ext[i] = data[extFile(sec, i)];
-    return { data, sec, stream, raw, ext, saveIndex: idx[0], original: new Uint8Array(input) };
+    return { data, sec, stream, raw, ext, saveIndex: idx[0], newerDamaged, original: new Uint8Array(input) };
   }
 
   // Builds the output file. Only the live save slot is written; the older slot stays as the game's own fallback.
@@ -212,8 +232,21 @@
   // ── One Pokémon ──
   // Party form: 100 bytes. PC form: 58 bytes with moves packed 10 bits each. Both are unencrypted.
   const F = (m, party, box) => m.off + (m.party ? party : box);
+  const erased = m => { for (let i = m.off, end = m.off + (m.party ? PARTY_MON : BOX_MON); i < end; i++) if (m.buf[i] !== 0xFF) return false; return true; };
+  // Turns never-written (all 0xFF) box slots into ordinary empty slots (all 0), as the game clears an empty slot.
+  // Runs only on the bytes being saved. Returns how many slots were cleared.
+  function clearErased(sv) {
+    let n = 0;
+    for (let b = 0; b < BOXES; b++) for (let s = 0; s < SLOTS; s++) {
+      const m = boxRef(sv, b, s);
+      if (mon.species(m) === 0xFFFF && erased(m)) { m.buf.fill(0, m.off, m.off + BOX_MON); n++; }
+    }
+    return n;
+  }
   const mon = {
-    empty: m => mon.species(m) === 0,
+    // Empty: no species, or never written. Flash that the game has never written reads as 0xFF bytes, and RetroArch
+    // keeps a new .srm that way, so a slot of nothing but 0xFF is an empty slot too.
+    empty: m => { const sp = mon.species(m); return sp === 0 || (sp === 0xFFFF && erased(m)); },
     pid: m => u32(m.buf, m.off),
     setPid: (m, v) => w32(m.buf, m.off, v),
     otid: m => u32(m.buf, m.off + 4),
@@ -867,7 +900,7 @@
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, registerOwned, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)

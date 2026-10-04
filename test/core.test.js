@@ -17,7 +17,13 @@ for (const file of process.argv.slice(2)) {
 
   t('rejects a blank file and a corrupted save', () => {
     assert.throws(() => C.load(new Uint8Array(0x20000)));
-    const bad = bytes.slice(); const sv = fresh(); bad[sv.sec[1] + 0x100] ^= 0xFF; assert.throws(() => C.load(bad));
+    const sv = fresh(), bad = bytes.slice(); bad[sv.sec[1] + 0x100] ^= 0xFF;
+    // A damaged newest save: like the game, the previous complete save is used, and the damaged one is reported.
+    let prev = null; try { prev = C.load(bad); } catch { /* no complete previous save in this file */ }
+    if (prev) { assert.strictEqual(prev.newerDamaged, sv.saveIndex); assert.ok(prev.saveIndex < sv.saveIndex); assert.ok(prev.sec.every(o => Math.floor(o / 0xE000) !== Math.floor(sv.sec[0] / 0xE000))); }
+    assert.ok(sv.newerDamaged === null || sv.newerDamaged > sv.saveIndex, 'only a newer unfinished save is reported');
+    const worse = bad.slice(); if (prev) worse[prev.sec[1] + 0x100] ^= 0xFF;
+    assert.throws(() => C.load(worse), 'both saves damaged: refused');
   });
 
   t('levels match stored party levels', () => {
@@ -431,8 +437,67 @@ for (const file of process.argv.slice(2)) {
     assert.throws(() => C.convertSave(bytes, 'gba'));
     assert.throws(() => C.convertSave(new Uint8Array(0x20000), 'srm'), 'a blank file is refused');
     assert.throws(() => C.convertSave(new Uint8Array(0x20008), 'srm'), 'an unknown size is refused');
-    const bad = bytes.slice(); bad[fresh().sec[1] + 0x100] ^= 0xFF;
+    const bad = new Uint8Array(0x20000).fill(0xFF); bad.set(bytes.subarray(0, 0x1000));
     assert.throws(() => C.convertSave(bad, 'srm'), 'a damaged save is refused');
+  });
+
+  t('never-written (all 0xFF) box slots count as empty, like a RetroArch .srm', () => {
+    const sv = fresh(), spots = [];
+    for (let b = 19; b < 25; b++) for (let s = 0; s < C.SLOTS; s++) { const r = C.boxRef(sv, b, s); if (M.empty(r)) { r.buf.fill(0xFF, r.off, r.off + 58); spots.push([b, s]); } }
+    if (!spots.length) return;
+    const ff = C.build(sv, D), a = C.load(ff);
+    assert.deepStrictEqual(C.unknownData(a, D), [], 'no "unknown species #65535"');
+    for (const [b, s] of spots) assert.ok(M.empty(C.boxRef(a, b, s)));
+    assert.deepStrictEqual(Buffer.from(C.build(C.load(ff), D)), Buffer.from(ff), 'round trip keeps it byte-identical');
+    // Adding into a never-written slot, then saving.
+    const [b0, s0] = spots[0], sp = D.species.findIndex(x => x.n === 'Pikachu');
+    C.createInBox(a, D, C.boxRef(a, b0, s0), { species: sp, level: 5, nature: 3, shiny: false, moves: [D.moves.indexOf('Thunderbolt'), 0, 0, 0] });
+    const r0 = C.boxRef(a, b0, s0);
+    assert.strictEqual(M.species(r0), sp);
+    // A slot that is 0xFF except one byte is not treated as empty.
+    const [b1, s1] = spots[spots.length - 1], r1 = C.boxRef(a, b1, s1);
+    r1.buf[r1.off + 30] = 0; assert.ok(!M.empty(r1)); r1.buf[r1.off + 30] = 0xFF; assert.ok(M.empty(r1));
+    const n = C.clearErased(a);
+    assert.strictEqual(n, spots.length - 1, 'the added Pokémon is kept, the rest are cleared');
+    for (const [b, s] of spots.slice(1)) { const r = C.boxRef(a, b, s); assert.ok(r.buf.subarray(r.off, r.off + 58).every(x => x === 0)); }
+    const out = C.load(C.build(a, D));
+    assert.strictEqual(M.species(C.boxRef(out, b0, s0)), sp);
+    assert.strictEqual(C.clearErased(out), 0);
+    const sv0 = fresh(); let ffs = 0;
+    for (let b = 0; b < 25; b++) for (let s = 0; s < C.SLOTS; s++) { const r = C.boxRef(sv0, b, s); if (r.buf.subarray(r.off, r.off + 58).every(x => x === 0xFF)) ffs++; }
+    assert.strictEqual(C.clearErased(sv0), ffs, 'clears exactly the never-written slots');
+  });
+
+  t('picks the save slot like the game, ignoring a half-written or stray sector in the other slot', () => {
+    const sv = fresh(), cur = sv.saveIndex, slot = Math.floor(sv.sec[0] / 0xE000), other = (1 - slot) * 14 * 0x1000;
+    const sameSave = x => { const a = C.load(x); assert.strictEqual(a.saveIndex, cur); assert.deepStrictEqual(a.sec, sv.sec);
+      assert.deepStrictEqual(Buffer.from(C.build(a, D)), Buffer.from(x)); };
+    // The emulator wrote the file while the game was writing its next save into the other slot.
+    for (let k = 1; k < 14; k++) {
+      const x = bytes.slice();
+      for (let i = 0; i < k; i++) { x.copyWithin(other + i * 0x1000, sv.sec[i], sv.sec[i] + 0x1000); new DataView(x.buffer).setUint32(other + i * 0x1000 + 0xFFC, cur + 1, true); }
+      sameSave(x);
+      assert.strictEqual(C.load(x).newerDamaged, cur + 1, 'the unfinished newer save is reported');
+    }
+    // A stray copy of section 0 with a newer counter and a bad checksum.
+    const y = bytes.slice();
+    y.copyWithin(other + 13 * 0x1000, sv.sec[0], sv.sec[0] + 0x1000);
+    new DataView(y.buffer).setUint32(other + 13 * 0x1000 + 0xFFC, cur + 1, true); y[other + 13 * 0x1000] ^= 0xFF;
+    sameSave(y);
+    // The other slot is complete, valid and newer, but its sections are from different saves: refused, not guessed.
+    const z = bytes.slice(), last = other + 13 * 0x1000, id = z[last + 0xFF4];
+    z.copyWithin(last, sv.sec[id], sv.sec[id] + 0x1000);
+    new DataView(z.buffer).setUint32(last + 0xFFC, cur + 1, true);
+    const alone = bytes.slice(); for (let i = 0; i < 14; i++) alone.fill(0, slot * 0xE000 + i * 0x1000 + 0xFF8, slot * 0xE000 + i * 0x1000 + 0xFFC);
+    let otherOk = true; try { C.load(alone); } catch { otherOk = false; }
+    if (otherOk) assert.throws(() => C.load(z), /only partly written/); else sameSave(z);
+    // An older save in the other slot never wins.
+    if (cur >= 2) {
+      const w = bytes.slice();
+      for (let i = 0; i < 14; i++) new DataView(w.buffer).setUint32(other + i * 0x1000 + 0xFFC, cur - 2, true);
+      sameSave(w);
+      assert.strictEqual(C.load(w).newerDamaged, null);
+    }
   });
 
   t('every species marked addable has data and a valid nickname', () => {

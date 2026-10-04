@@ -998,11 +998,20 @@
     if (!dirty) return true;
     return (await modal('Discard unsaved changes?', `You have ${dirty} unsaved change${dirty === 1 ? '' : 's'} in ${fileName}.`, [{ text: 'Cancel' }, { text: 'Discard', primary: true }])) === 1;
   }
-  function openBytes(bytes, name) {
+  async function openBytes(bytes, name) {
     let next;
     try { next = C.load(bytes); } catch (e) {
       if (sv) showError('Could not open ' + name, e); else { $('#welcomeMsg').textContent = e.message; }
       return;
+    }
+    // The newest save in the file is unfinished or damaged, so the game falls back to the previous one. Say so first.
+    if (next.newerDamaged !== null) {
+      const choice = await modal('The newest save in this file is incomplete',
+        `Save #${next.newerDamaged} in ${name} was not finished or is damaged. This happens when the emulator writes the file while the game is still saving, or when a copy is cut short.\n\n`
+        + `The game then says the save file is corrupted and loads the previous complete save (#${next.saveIndex}). RadicalHex opens that one too, so you see what the game will load. The unfinished save is left as it is, and your next in-game save replaces it.\n\n`
+        + 'Next time, close the game in the emulator (in RetroArch: Close Content) before copying the save, so the file is fully written.',
+        [{ text: "Don't open it" }, { text: `Open save #${next.saveIndex}`, primary: true }]);
+      if (choice !== 1) return;
     }
     // A save with Pokémon, moves or items Radical Red 4.1 doesn't have is probably from another version (a future
     // Radical Red 5.0, say). Ask before editing it.
@@ -1049,12 +1058,13 @@
     // The Pokédex is updated only in the bytes being written (like PKHeX): every Pokémon in the file counts as caught.
     // The editor's own copy is put back, so a cancelled or stopped save changes nothing.
     const before = snapshot();
-    let bytes, fixed = 0, caught = [];
-    try { fixed = C.dex.repair(sv); caught = C.registerOwned(sv, D); bytes = C.build(sv, D); }
+    let bytes, fixed = 0, caught = [], cleared = 0;
+    try { fixed = C.dex.repair(sv); cleared = C.clearErased(sv); caught = C.registerOwned(sv, D); bytes = C.build(sv, D); }
     catch (e) { restore(before); showError('Save stopped', e); return; }
     restore(before);
     const dexNote = (caught.length ? ` ${caught.length} Pokémon marked as caught in the Pokédex.` : '')
-      + (fixed ? ` Fixed ${fixed} Pokédex ${fixed === 1 ? 'entry' : 'entries'} left by an older RadicalHex.` : '');
+      + (fixed ? ` Fixed ${fixed} Pokédex ${fixed === 1 ? 'entry' : 'entries'} left by an older RadicalHex.` : '')
+      + (cleared ? ` Tidied ${cleared} never-used box slot${cleared === 1 ? '' : 's'} into normal empty slots.` : '');
     try {
       let where;
       if (host) { where = as ? await host.saveAs(bytes) : await host.save(bytes); if (!where) return; }

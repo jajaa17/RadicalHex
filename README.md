@@ -4,6 +4,8 @@
 
 <p align="center">A free <b>Pokémon Radical Red 4.1 save editor</b> and Pokédex for Windows, in the spirit of PKHeX.<br>Edit Pokémon, boxes, party, items and money in your Radical Red <code>.sav</code> file, check legality, and plan Nuzlocke runs.</p>
 
+<p align="center">Tested and used alongside <b>mGBA</b> and <b>RetroArch</b> (the Steam version on PC, and Android), and works with saves from both.</p>
+
 <p align="center"><a href="https://github.com/jajaa17/RadicalHex/releases/latest"><b>Download RadicalHex.exe</b></a> · <a href="https://github.com/jajaa17/RadicalHex/issues/new/choose">Report a problem</a></p>
 
 ![The Boxes tab with a Pokémon open in the editor](docs/screenshot-boxes.png)
@@ -94,12 +96,12 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 - A backup is saved to the `Backups` folder next to RadicalHex.exe every time you open a save and right before every save. Restore any of them from the **Backups** tab. To keep the folder tidy, tick backups and delete them, or use **Select all but the newest 5** (per save). The tab also lists backups made by versions before 1.0.5 (those were kept in `Documents\RadicalHex\Backups`).
 - Every save is checked before it is written. RadicalHex rebuilds the file, reloads it, makes sure only the parts it is allowed to edit changed, and validates every Pokémon and bag entry you touched. If anything is off, nothing is written.
 - Files are written to a temporary file first, verified, then swapped in.
-- Only the newest save slot is edited, so the game's previous save stays as a fallback.
+- Only the newest save slot is edited, so the game's previous save stays as a fallback. RadicalHex picks that slot the same way the game does, so a half-written save (from copying the file while the game was saving) is never mistaken for the real one.
 - Undo (Ctrl+Z) for every edit, and a warning before closing with unsaved changes.
 - The Open dialog starts in the folder of the last save you opened.
 
 ### Save converter (RetroArch .srm ↔ .sav)
-Play on your phone with RetroArch, then carry on on your PC (or the other way around).
+Play on your phone with RetroArch, then carry on on your PC (or the other way around). RadicalHex has been tested and used alongside mGBA and RetroArch (Steam on PC, and Android).
 - **Convert…** in the top bar makes a copy of your save for another emulator:
   - **RetroArch (.srm)** for RetroArch on Android or PC, with the mGBA or VBA-M core
   - **Other emulators (.sav)** for mGBA, VBA-M, My Boy!, Pizza Boy and others. This also turns a RetroArch `.srm` back into a `.sav`
@@ -156,9 +158,19 @@ Radical Red battery saves (`.sav`, `.srm`) from emulators like mGBA, VBA-M, Retr
 2. Give the `.srm` the same name as your ROM. For example, if the ROM is `Pokemon Radical Red.gba`, the save must be `Pokemon Radical Red.srm`.
 3. Copy it to your phone, for example through Google Drive, into RetroArch's saves folder. That is often `RetroArch/saves` (or a folder inside it named after the core, such as `saves/mGBA`), but check **Settings → Directory → Save Files** in RetroArch.
 4. Close RetroArch's game before copying the save over, then load the ROM. Use in-game saves, not save states.
-5. To go back to the PC, copy the `.srm` from the phone, open it in RadicalHex, press **Convert…** → **Other emulators (.sav)**, and save it with your ROM's name next to your PC emulator's saves.
+5. To go back to the PC:
+   - **RetroArch on the PC too** (for example the Steam version): no converting needed. Copy the `.srm` as it is into the PC's RetroArch saves folder, such as `steamapps\common\RetroArch\saves\mGBA`.
+   - **mGBA or another emulator on the PC:** open the `.srm` in RadicalHex, press **Convert…** → **Other emulators (.sav)**, and save it with your ROM's name next to that emulator's saves.
+
+**Before you copy a save off the phone (or the PC), close the game in RetroArch** (**Close Content**, or quit RetroArch) a few seconds after saving in-game. Once the game is closed, RetroArch has written the whole `.srm`. A copy made earlier can catch the game halfway through saving.
 
 Keep a copy of your save before swapping files around. RadicalHex keeps one in `Backups` every time you open a file.
+
+**The game says my save file is corrupted, or RadicalHex says the newest save is incomplete**
+The game keeps two copies of your save and writes over the older one each time you save. If the file was copied while the game was still saving (for example straight after saving in RetroArch, before closing the game), the newest copy is cut short. The game then says the save file is corrupted and loads the previous complete save. Your next in-game save replaces the broken copy. RadicalHex does the same: it opens the previous complete save, tells you, and never touches the broken copy.
+
+**Box 21 or 22 was full of "?" Pokémon**
+Parts of a save the game has never written read as blank (`0xFF`) bytes, and a fresh RetroArch `.srm` starts that way. RadicalHex 1.0.16 and newer show those slots as empty. When you save, it turns them into normal empty slots.
 
 **Which version of Radical Red?**
 Radical Red **4.1**. It is built from 4.1's own data and tested on real 4.1 saves.
