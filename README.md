@@ -48,6 +48,7 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 - **Drag and drop like PKHeX:** your party is shown next to the box. Drag any Pokémon onto any box or party slot to move it there, or onto another Pokémon to swap them. Hold a Pokémon over ‹ or › to flip to another box. Clone and release from the editor
 - **Move to box** sends a Pokémon to the first free slot of any other box, and **Move to party** puts it at the end of your party
 - Max IVs on every Pokémon in one click
+- **Box names and wallpapers**: rename any box (up to 8 letters, like the game) and pick its wallpaper from the PC's own wallpaper menu. In SoulGold you can also unlock Walda's hidden **Friends** wallpaper (Radical Red has no hidden wallpapers: all 16 are already in its menu)
 
 ### Party
 ![The Party tab with held items](docs/screenshot-party.png)

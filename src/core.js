@@ -9,7 +9,7 @@
   const WIN = [0xF24, 0xFF0, 0xFF0, 0xFF0, 0xD98, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0xFF0, 0x450];
   const STREAM_SIZE = 8 * 0xFF0 + 0x450; // PokemonStorage: sections 5..13 concatenated
   const BOX_MON = 58, PARTY_MON = 100, SLOTS = 30, STRIDE = SLOTS * BOX_MON;
-  const STREAM_BOXES = 19, BOXES = 25; // boxes 20-22 live in the raw sector 30/31 region, 23-25 in the save blocks
+  const STREAM_BOXES = 19, BOXES = 25, BOX_NAME_LEN = 8; // boxes 20-22 live in the raw sector 30/31 region, 23-25 in the save blocks
   const RAW_BASE = 0x1E000, RAW_BOX_OFF = 0xB0C, RAW_BOX_SIZE = 3 * STRIDE, RAW_FIRST = 0xFF0 - RAW_BOX_OFF;
   const rawFile = r => (r < 0xFF0 ? RAW_BASE + r : RAW_BASE + 0x1000 + (r - 0xFF0));
   // Boxes 23-24 sit in SaveBlock1 at 0x1F08 (sections 2-3), box 25 in SaveBlock2 at 0xB0 (section 0).
@@ -239,10 +239,30 @@
     ? { buf: sv.stream, off: 4 + (box * SLOTS + slot) * BOX_MON, party: false }
     : box < 22 ? { buf: sv.raw, off: (box - STREAM_BOXES) * STRIDE + slot * BOX_MON, party: false }
       : { buf: sv.ext, off: (box - 22) * STRIDE + slot * BOX_MON, party: false });
+  // Box names and wallpapers (CFRU's sPokemonBoxNamePtrs / sPokemonBoxWallpaperPtrs): boxes 1-14 where FireRed keeps
+  // them, boxes 15-25 counting down before the names / right after box 19.
+  const nameOff = box => (box < 14 ? 0x8344 + 9 * box : 0x8344 - 9 * (box - 13));
+  const wallOff = box => (box < 14 ? 0x83C2 + box : STREAM_BOXES * STRIDE + 4 + (box - 14));
   function boxName(sv, box) {
-    const o = box < 14 ? 0x8344 + 9 * box : 0x8344 - 9 * (box - 13);
+    const o = nameOff(box);
     const n = decodeText(sv.stream.subarray(o, o + 9));
     return n.trim() ? n : 'Box ' + (box + 1);
+  }
+  function setBoxName(sv, box, name) {
+    const b = name && encodeText(name, BOX_NAME_LEN);
+    if (!b || box < 0 || box >= BOXES) return false;
+    sv.stream.set(b, nameOff(box)); sv.stream[nameOff(box) + BOX_NAME_LEN] = 0xFF;
+    return true;
+  }
+  const WALLPAPERS = ['Forest', 'City', 'Desert', 'Savanna', 'Crag', 'Volcano', 'Snow', 'Cave', 'Beach', 'Seafloor', 'River', 'Sky',
+    'Polka-dot', 'Pokécenter', 'Machine', 'Plain'];
+  // The PC's wallpaper menu, as in FireRed.
+  const WALLPAPER_SETS = [['Scenery 1', [0, 1, 2, 3]], ['Scenery 2', [4, 5, 6, 7]], ['Scenery 3', [8, 9, 10, 11]], ['Etcetera', [12, 13, 14, 15]]];
+  const wallpaper = (sv, box) => sv.stream[wallOff(box)];
+  function setWallpaper(sv, box, id) {
+    if (box < 0 || box >= BOXES || !(id >= 0 && id < WALLPAPERS.length)) return false;
+    sv.stream[wallOff(box)] = id;
+    return true;
   }
 
   // ── One Pokémon ──
@@ -926,7 +946,7 @@
   const api = {
     WIN, BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, natureEffect,
     load, serialize, build, checksum, allowedRanges, flag, modes,
-    partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
+    partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, wallpaper, setWallpaper, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,

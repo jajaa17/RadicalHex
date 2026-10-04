@@ -44,6 +44,16 @@ for (const file of process.argv.slice(2)) {
     let o3 = null; try { o3 = C.load(bad3); } catch { /* fine */ }
     if (o3) assert.notStrictEqual(o3.slot, sv.slot);
   });
+  t('box names and wallpapers edit and save for every box', () => {
+    const sv = fresh();
+    for (let b = 0; b < C.BOXES; b++) { assert.ok(C.setBoxName(sv, b, 'Name' + (b + 1))); assert.ok(C.setWallpaper(sv, b, (b * 5) % C.WALLPAPERS.length)); }
+    assert.ok(!C.setBoxName(sv, 0, 'NineChars') && !C.setBoxName(sv, 0, '') && !C.setWallpaper(sv, 0, C.WALLPAPERS.length), 'bad input refused');
+    const back = C.load(C.build(sv, D));
+    for (let b = 0; b < C.BOXES; b++) { assert.strictEqual(C.boxName(back, b), 'Name' + (b + 1)); assert.strictEqual(C.wallpaper(back, b), (b * 5) % C.WALLPAPERS.length); }
+    for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) assert.deepStrictEqual(Buffer.from(C.boxRef(back, b, s).buf.subarray(C.boxRef(back, b, s).off, C.boxRef(back, b, s).off + 20)), Buffer.from(C.boxRef(fresh(), b, s).buf.subarray(C.boxRef(fresh(), b, s).off, C.boxRef(fresh(), b, s).off + 20)), 'Pokémon untouched');
+    C.setFriendsWallpaper(sv, true); assert.ok(C.friendsWallpaper(C.load(C.build(sv, D))), 'Friends wallpaper unlock');
+  });
+
   t('party levels and stats match what the game stored', () => {
     const sv = fresh();
     for (let i = 0; i < C.partyCount(sv); i++) {

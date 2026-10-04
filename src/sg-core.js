@@ -22,6 +22,7 @@
   // SaveBlock1 / SaveBlock2 offsets
   const PARTY_COUNT = 0x234, PARTY = 0x238, MONEY = 0x478, COINS = 0x47C, BAG = 0x548, FLAGS = 0x1898;
   const DEX_SEEN = 0x31F8, DEX_CAUGHT = 0x3279, DEX_BYTES = 129, NATIONAL_DEX = 1025;
+  const WALDA_UNLOCKED = 0x343C + 22; // SaveBlock1 waldaPhrase (0x343C, from the ARM compiler) .patternUnlocked
   const KEY = 0xB4;
   const FLAG_RELEASE_SHINY_ODDS = 0x95E, SHINY_ODDS = 512, RELEASE_SHINY_ODDS = 256;
   const MONEY_MAX = 9999999, COINS_MAX = 9999, EV_CAP = 252, EV_TOTAL = 510;
@@ -211,6 +212,7 @@
     sb1Range(MONEY, COINS + 2);
     sb1Range(BAG, BAG + POCKETS.reduce((n, p) => n + p.cap * 4, 0));
     sb1Range(DEX_SEEN, DEX_CAUGHT + DEX_BYTES);
+    sb1Range(WALDA_UNLOCKED, WALDA_UNLOCKED + 1);
     sb1Range(SB1_TAIL, SB1_TAIL + 1944);
     r.push([s[0] + DATA + CANDY_JAR, s[0] + DATA + CANDY_JAR + 4], [s[0] + BP, s[0] + BP + 2]);
     for (let i = 5; i <= 13; i++) r.push([s[i], s[i] + DATA]);
@@ -287,6 +289,34 @@
     const n = decodeText(sv.ps.subarray(o, o + 9));
     return n.trim() ? n : 'Box ' + (box + 1);
   }
+  const BOX_NAME_LEN = 8;
+  function setBoxName(sv, box, name) {
+    const b = name && encodeText(name, BOX_NAME_LEN);
+    if (!b || box < 0 || box >= BOXES) return false;
+    sv.ps.set(b, boxNameOff(box)); sv.ps[boxNameOff(box) + BOX_NAME_LEN] = 0xFF;
+    return true;
+  }
+  // Wallpapers: legacyBoxWallpapers, extraBoxWallpaper, extensionBoxWallpapers, box19Wallpaper (pokemon_storage_system.h).
+  const wallOff = box => (box < 15 ? 0x8623 + box : box === 15 ? 0x90A9 : box < 18 ? 0xA296 + (box - 16) : 0xAB89);
+  // The game's wallpaper list (src/data/wallpapers.h) with its PC menu names; the last, Friends, is Walda's.
+  const WALLPAPERS = ['Heart', 'Soul', 'Spiky Pika', 'Trio 3', 'PikaPika 2', 'Kimono Girl', 'Trio 1', 'Renegade', 'Trio 2', 'Time N Space',
+    'Nostalgic 2', 'Seafloor', 'Nostalgic 1', 'Distortion', 'Space', 'Backyard', 'Torchic', 'PikaPika 1', 'Contest', 'Revival', 'Croagunk',
+    'Forest', 'City', 'Desert', 'Savanna', 'Crag', 'Volcano', 'Snow', 'Cave', 'Beach', 'River', 'Sky', 'Polka-dot', 'Pokécenter', 'Machine',
+    'Simple', 'Galactic 1', 'Galactic 2', 'Big Brother', 'Pokéathlon', 'Friends'];
+  const FRIENDS_WALLPAPER = 40;
+  // The PC's wallpaper menu (AddWallpapersMenu), in the game's order.
+  const WALLPAPER_SETS = [['Scenery 1', [21, 22, 23, 24, 25, 26, 27]], ['Scenery 2', [28, 29, 11, 30, 31]],
+    ['Etcetera 1', [32, 33, 34, 35, 14, 15, 12]], ['Etcetera 2', [16, 6, 17, 9, 36, 13, 18]], ['Etcetera 3', [10, 20, 8, 4, 7, 37, 0]],
+    ['Etcetera 4', [1, 38, 39, 3, 2, 5, 19]], ['Friends', [FRIENDS_WALLPAPER]]];
+  const wallpaper = (sv, box) => sv.ps[wallOff(box)];
+  function setWallpaper(sv, box, id) {
+    if (box < 0 || box >= BOXES || !(id >= 0 && id < WALLPAPERS.length)) return false;
+    sv.ps[wallOff(box)] = id;
+    return true;
+  }
+  // Walda's Friends wallpaper only shows in the PC's menu once its pattern is unlocked (SaveBlock1 waldaPhrase.patternUnlocked).
+  const friendsWallpaper = sv => sv.sb1[WALDA_UNLOCKED] !== 0;
+  const setFriendsWallpaper = (sv, on) => { sv.sb1[WALDA_UNLOCKED] = on ? 1 : 0; };
 
   // ── One Pokémon ──
   // 76-byte BoxPokemon, unencrypted, with bit fields (positions from the ARM compiler); a party Pokémon adds 20 bytes.
@@ -896,7 +926,7 @@
   const api = {
     GAME: 'sg', BOXES, SLOTS, POCKETS, BALLS, NATURES, STATS, MONEY_MAX, COINS_MAX, CANDY_JAR_MAX, candyJar, setCandyJar, BP_MAX, bp, setBp, natureEffect,
     load, serialize, build, checksum, allowedRanges,
-    partyCount, partyRef, boxRef, boxName, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
+    partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, FRIENDS_WALLPAPER, wallpaper, setWallpaper, friendsWallpaper, setFriendsWallpaper, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
     calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,

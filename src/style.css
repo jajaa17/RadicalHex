@@ -94,6 +94,10 @@ h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
 .boxbar select { width: auto; flex: 0 1 320px; min-width: 160px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--raised); font-weight: 600; }
 .boxbar .count { color: var(--muted); font-family: var(--mono); font-size: 12px; }
 .boxbar .spacer { flex: 1; }
+.boxset { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; font-size: 12.5px; }
+.boxset-f { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.boxset-f input[type=text] { width: 13ch; }
+.boxset-f select { width: auto; max-width: 220px; }
 .pc { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 10px; border-radius: 10px; background: var(--sunk); border: 1px solid var(--line); max-width: 760px; }
 .slot { position: relative; aspect-ratio: 1 / .86; border: 1px solid transparent; border-radius: 8px; background: var(--panel); display: grid; place-items: center; padding: 0; min-width: 0; }
 .slot.empty { background: transparent; border: 1px dashed var(--line); }

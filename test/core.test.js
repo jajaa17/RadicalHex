@@ -50,6 +50,15 @@ for (const file of process.argv.slice(2)) {
     assert.throws(() => C.load(b), /partly written/);
   });
 
+  t('box names and wallpapers edit and save for every box', () => {
+    const sv = fresh();
+    for (let b = 0; b < C.BOXES; b++) { assert.ok(C.setBoxName(sv, b, 'Name' + (b + 1))); assert.ok(C.setWallpaper(sv, b, (b * 5) % C.WALLPAPERS.length)); }
+    assert.ok(!C.setBoxName(sv, 0, 'NineChars') && !C.setBoxName(sv, 0, '') && !C.setWallpaper(sv, 0, C.WALLPAPERS.length), 'bad input refused');
+    const back = C.load(C.build(sv, D));
+    for (let b = 0; b < C.BOXES; b++) { assert.strictEqual(C.boxName(back, b), 'Name' + (b + 1)); assert.strictEqual(C.wallpaper(back, b), (b * 5) % C.WALLPAPERS.length); }
+    for (let b = 0; b < C.BOXES; b++) for (let s = 0; s < C.SLOTS; s++) assert.deepStrictEqual(Buffer.from(C.boxRef(back, b, s).buf.subarray(C.boxRef(back, b, s).off, C.boxRef(back, b, s).off + 20)), Buffer.from(C.boxRef(fresh(), b, s).buf.subarray(C.boxRef(fresh(), b, s).off, C.boxRef(fresh(), b, s).off + 20)), 'Pokémon untouched');
+  });
+
   t('levels match stored party levels', () => {
     const sv = fresh();
     for (let i = 0; i < C.partyCount(sv); i++) { const m = C.partyRef(sv, i); assert.strictEqual(M.level(m), (() => { const g = C.growth(D, M.species(m)); let L = 1; while (L < 100 && g[L + 1] <= M.exp(m)) L++; return L; })()); }

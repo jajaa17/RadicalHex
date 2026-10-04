@@ -422,10 +422,39 @@
         next,
         h('span', { class: 'spacer' }),
         illegalButton(),
-        h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: 'Set all six IVs to 31 for every Pokémon in the party and all 25 boxes' }, 'Max IVs on everything')),
+        h('button', { class: 'btn', type: 'button', onclick: maxAllIvs, title: `Set all six IVs to 31 for every Pokémon in the party and all ${C.BOXES} boxes` }, 'Max IVs on everything')),
+      boxSettings(),
       h('div', { class: 'storage' }, grid, partyCol),
       G.key === 'rr' && box >= 22 ? h('p', { class: 'note' }, 'Boxes 23–25 unlock in Radical Red as your PC fills up. Pokémon placed here are saved, and appear in the game once the box is unlocked.') : null,
       h('p', { class: 'note' }, 'Drag a Pokémon onto any box or party slot to move or swap it. Hold it over ‹ or › to flip to another box. Click an empty slot to add a new Pokémon.'));
+  }
+
+  // The open box's name and wallpaper, as the PC's "Name" and "Wallpaper" options set them.
+  function boxSettings() {
+    if (!C.setBoxName) return null;
+    const old = C.boxName(sv, box), wp = C.wallpaper(sv, box), friends = C.friendsWallpaper ? C.friendsWallpaper(sv) : true;
+    const name = h('input', { id: 'box-name', type: 'text', maxlength: C.BOX_NAME_LEN, value: old, 'aria-label': 'Box name', oninput: e => e.target.classList.remove('bad'), onchange: e => {
+      const v = e.target.value.trim();
+      if (!v) { e.target.value = old; status('A box needs a name.', 'err'); return; }
+      if (!C.encodeText(v, C.BOX_NAME_LEN)) { e.target.classList.add('bad'); status(`Box names are up to ${C.BOX_NAME_LEN} letters the game can show.`, 'err'); return; }
+      change(`Renamed ${old} to ${v}`, () => C.setBoxName(sv, box, v));
+    } });
+    const known = C.WALLPAPER_SETS.some(([, ids]) => ids.includes(wp));
+    const wall = h('select', { id: 'box-wallpaper', 'aria-label': 'Wallpaper', onchange: e => {
+      const id = +e.target.value;
+      change(`Set the wallpaper of ${old} to ${C.WALLPAPERS[id]}`, () => C.setWallpaper(sv, box, id));
+    } },
+      known ? null : h('option', { value: wp, selected: true }, `Unknown (#${wp})`),
+      C.WALLPAPER_SETS.map(([set, ids]) => h('optgroup', { label: set }, ids.map(id =>
+        h('option', { value: id, selected: id === wp, disabled: id === C.FRIENDS_WALLPAPER && !friends && !hax }, C.WALLPAPERS[id] + (id === C.FRIENDS_WALLPAPER && !friends ? ' (locked)' : ''))))));
+    return h('div', { class: 'boxset' },
+      h('label', { class: 'boxset-f' }, h('span', {}, 'Name'), name),
+      h('label', { class: 'boxset-f' }, h('span', {}, 'Wallpaper'), wall),
+      C.setFriendsWallpaper ? h('label', { class: 'check', title: "Walda's Friends wallpaper shows in the PC's wallpaper menu once it is unlocked" },
+        h('input', { id: 'box-friends', type: 'checkbox', checked: friends, onchange: e => {
+          const on = e.target.checked;
+          change(on ? 'Unlocked the Friends wallpaper' : 'Locked the Friends wallpaper', () => C.setFriendsWallpaper(sv, on));
+        } }), 'Friends wallpaper unlocked') : null);
   }
 
   function healParty() {
