@@ -17,6 +17,12 @@ const spriteCount = Math.max(...D.species.filter(s => s.s !== undefined).map(s =
 for (let i = 0; i < spriteCount; i++) for (const dir of ['', 'shiny/']) assert.ok(fs.existsSync(path.join(root, `src/assets/sprites/${dir}${i}.png`)), `sprite ${dir}${i}`);
 const html = fs.readFileSync(path.join(root, 'src/index.html'), 'utf8');
 assert.ok(/Content-Security-Policy[^>]+script-src 'self'/.test(html), 'CSP');
+// Loading screen: every script is deferred (so the screen paints first, in order) and app.js removes it.
+{
+  const tags = html.match(/<script[^>]*>/g);
+  assert.ok(tags.length === 10 && tags.every(t => / defer>$/.test(t)) && tags[tags.length - 1].includes('app.js'), 'scripts are deferred, app.js last');
+  assert.ok(html.includes('id="boot"') && fs.readFileSync(path.join(root, 'src/app.js'), 'utf8').includes("$('#boot')"), 'loading screen shown and removed');
+}
 const main = fs.readFileSync(path.join(root, 'main.js'), 'utf8');
 // Every file main.js loads must be packed into the .exe.
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -36,7 +42,7 @@ for (let n = 0; n < 25; n++) for (const shiny of [true, false]) {
 for (let i = 1; i < D.items.length; i++) if (D.items[i] && C.validItem(D, i)) assert.ok(fs.existsSync(path.join(root, `src/assets/items/${i}.png`)), `icon for ${D.items[i]}`);
 // Every species with a national dex number has its cry, and the page loads the sound code.
 for (const n of new Set(D.species.filter(s => s.n && s.nat).map(s => s.nat))) assert.ok(fs.statSync(path.join(root, `src/assets/cries/${n}.ogg`)).size > 500, `cry ${n}`);
-assert.ok(html.includes('<script src="sound.js"></script>'), 'sound.js is loaded');
+assert.ok(html.includes('<script src="sound.js" defer></script>'), 'sound.js is loaded');
 // EV limits: 252 per stat, 510 in total, filled in stat order.
 assert.deepStrictEqual(C.clampEvs([252, 6, 25662, 0, 0, 0]), [252, 6, 252, 0, 0, 0]);
 assert.deepStrictEqual(C.clampEvs([252, 252, 252, 0, 0, 0]), [252, 252, 6, 0, 0, 0]);
@@ -95,7 +101,7 @@ global.window = {};
 eval(fs.readFileSync(path.join(root, 'src/sg-data.js'), 'utf8'));
 eval(fs.readFileSync(path.join(root, 'src/sg-dex.js'), 'utf8'));
 const SD = window.SG_DATA, SX = window.SG_DEX, SC = require('../src/sg-core.js');
-assert.ok(html.includes('<script src="sg-core.js"></script>') && html.includes('<script src="sg-data.js"></script>') && html.includes('<script src="sg-dex.js"></script>'), 'SoulGold scripts are loaded');
+assert.ok(html.includes('<script src="sg-core.js" defer></script>') && html.includes('<script src="sg-data.js" defer></script>') && html.includes('<script src="sg-dex.js" defer></script>'), 'SoulGold scripts are loaded');
 assert.ok(SD.species.length > 1500 && SD.species.length <= 2048, 'SoulGold species fit 11 bits');
 assert.ok(SD.items.length > 900 && SD.items.length <= 1024, 'SoulGold items fit 10 bits');
 assert.ok(SD.moves.length > 800 && SD.moves.length <= 2048 && SD.pp.length === SD.moves.length, 'SoulGold moves fit 11 bits');

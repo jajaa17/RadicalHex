@@ -120,7 +120,7 @@ window.RHNuzlocke = function (ui) {
           h('label', { class: 'f' }, h('span', {}, 'Box for fainted Pokémon'), h('select', { id: 'nz-grave', onchange: e => set({ grave: +e.target.value }) },
             h('option', { value: -1, selected: s.grave < 0 }, 'None'),
             Array.from({ length: C.BOXES }, (_, b) => h('option', { value: b, selected: b === s.grave }, C.boxName(sv, b))))),
-          s.grave >= 0 ? h('p', { class: 'note' }, `${mons.filter(m => m.dead).length} in the graveyard. Select a Pokémon in a box and use "Move to graveyard" in the editor.`)
+          s.grave >= 0 ? h('p', { class: 'note' }, `${mons.filter(m => m.dead).length} in the graveyard. Select a Pokémon in your party or a box and use "Move to graveyard" in the editor.`)
             : h('p', { class: 'note' }, 'Pick a box. Pokémon in it count as fainted in these tools.')),
         h('section', { class: 'card' }, h('h3', {}, 'Run summary'),
           h('dl', { class: 'kv' }, h('dt', {}, 'Alive'), h('dd', {}, String(alive.length)), h('dt', {}, 'Fainted'), h('dd', {}, String(mons.length - alive.length)),

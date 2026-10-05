@@ -53,7 +53,7 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 ### Party
 ![The Party tab with held items](docs/screenshot-party.png)
 
-- Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves
+- Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves. Status shows as the game's short tag (PSN, TOX, BRN, PAR, SLP, FRZ, FNT), on the party cards and next to your party in the Boxes tab; hover it for the full name
 - **Heal**: restore HP (fainted Pokémon included), cure poison, burn, sleep, freeze and paralysis, and refill PP, for one Pokémon or the whole party
 - **Add a Pokémon straight to your party**: click an empty party slot
 - Drag party cards onto each other to change the order. **Move to box** (or dragging in the Boxes tab) puts a party Pokémon in a box, and the rest of the party moves up, like in the game. Your last Pokémon has to stay (eggs don't count)
@@ -106,7 +106,7 @@ A Pokédex built from Radical Red's own data, so it matches the hack rather than
 ![The Nuzlocke tab with level caps](docs/screenshot-nuzlocke.png)
 
 - **Level caps** from the official Radical Red 4.1 docs for Normal and Hardcore, and a list of Pokémon above your current cap
-- **Graveyard box**: pick a box for fainted Pokémon and move them there from the editor
+- **Graveyard box**: pick a box for fainted Pokémon and move them there from the editor, from a box or straight from your party
 - **Encounter log** built from where each of your Pokémon was met, with locations that have more than one catch flagged
 - **No encounter yet**: locations with wild Pokémon where you have no catch so far
 - **Missed encounters**: fainted, ran from or failed to catch your first encounter somewhere? Record it (location, the Pokémon from that area's encounter list, and what happened) and the location counts as used: it leaves "No encounter yet", shows in the encounter log, and a catch there afterwards is flagged. Click a location under "No encounter yet" to fill the form
@@ -150,6 +150,7 @@ Play on your phone with RetroArch, then carry on on your PC (or the other way ar
 ### Fits your screen, light on memory
 - Works on anything from old 1024×768 monitors and scaled laptop screens to large displays. The layout adapts when the window is small or not maximized.
 - Only the tab you are looking at is kept in memory, and long lists only draw the rows on screen, so RadicalHex stays light even on older PCs.
+- A small splash shows while the portable .exe unpacks, then a loading screen while the Pokémon data loads, so you never stare at a blank window when it starts.
 
 ## Using it
 

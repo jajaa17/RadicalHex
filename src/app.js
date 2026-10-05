@@ -355,7 +355,7 @@
       const sp = M.species(ref), lv = C.levelOf(D, ref), iv = M.ivs(ref);
       el.title = `${M.nickname(ref)} — ${spName(sp)}${lv ? ', Lv ' + lv : ''}`;
       el.append(...[sprite(sp, M.shiny(ref), size, M.isEgg(ref)),
-        party ? h('span', { class: 'pinfo' }, h('span', { class: 'pname' }, M.nickname(ref) || spName(sp)), h('span', { class: 'plv' }, lv ? 'Lv ' + lv : '')) : null,
+        party ? h('span', { class: 'pinfo' }, h('span', { class: 'pname' }, M.nickname(ref) || spName(sp)), h('span', { class: 'plv' }, lv ? 'Lv ' + lv : '', statusBadge(ref))) : null,
         h('span', { class: 'marks' }, M.shiny(ref) ? h('span', { class: 'star', title: 'Shiny' }, '★') : null,
           iv.every(v => v === 31) ? h('span', { class: 'perfect', title: 'Perfect IVs' }, '⬢') : null,
           illegal(ref) ? h('span', { class: 'illegal-mark', title: 'Illegal: open it to see why' }, '✕') : null),
@@ -493,7 +493,7 @@
         sprite(sp, M.shiny(r), 96, M.isEgg(r)),
         h('span', { class: 'pcard-body' },
           h('span', { class: 'pcard-head' }, h('strong', {}, M.nickname(r) || spName(sp)), M.shiny(r) ? h('span', { class: 'star' }, '★') : null,
-            C.partyStatus(r) ? h('span', { class: 'status-badge' + (C.partyStatus(r) === 'Fainted' ? ' fnt' : '') }, C.partyStatus(r)) : null,
+            statusBadge(r),
             h('span', { class: 'note mono' }, 'Lv ' + C.levelOf(D, r))),
           h('span', { class: 'note' }, `${spName(sp)} · ${C.NATURES[M.nature(r)]}`),
           h('span', { class: 'note held-line' }, itemIcon(M.item(r)), M.item(r) ? 'Holding ' + (D.items[M.item(r)] || '#' + M.item(r)) : 'No held item'),
@@ -890,6 +890,12 @@
     catch { const t = $('#ed-showdown'); if (t) { t.select(); } status('Press Ctrl+C to copy the selected text.'); }
   }
 
+  // A party Pokémon's status as the game's short tag (PSN, TOX, BRN...), with the full name on hover.
+  const STATUS_TAG = { Fainted: 'FNT', Asleep: 'SLP', 'Badly poisoned': 'TOX', Poisoned: 'PSN', Burned: 'BRN', Frozen: 'FRZ', Paralyzed: 'PAR', Frostbitten: 'FRB' };
+  function statusBadge(r) {
+    const st = r && r.party && !M.isEgg(r) ? C.partyStatus(r) : '';
+    return st ? h('span', { class: 'status-badge' + (st === 'Fainted' ? ' fnt' : ''), title: st }, STATUS_TAG[st] || st) : null;
+  }
   function firstEmpty(startBox) {
     for (let k = 0; k < C.BOXES; k++) { const b = (startBox + k) % C.BOXES; for (let s = 0; s < C.SLOTS; s++) if (!filled(C.boxRef(sv, b, s))) return [b, s]; }
     return null;
@@ -928,6 +934,13 @@
       row.append(h('button', { class: 'btn', type: 'button', title: 'Restore HP, cure status conditions and refill PP', onclick: () => {
         if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true, sfx: 'heal' })) status(`${M.nickname(r)} is already fully healed.`);
       } }, st ? `Heal (${st.toLowerCase()})` : 'Heal'));
+      // Nuzlocke: put a fainted party Pokémon in the graveyard box (deposited like the game, the rest move up).
+      const grave = nuz.graveBox();
+      if (grave >= 0) {
+        const gs = firstEmptyIn(grave);
+        row.append(h('button', { class: 'btn', type: 'button', disabled: gs < 0, title: gs >= 0 ? `Nuzlocke: move this Pokémon to your graveyard box (${C.boxName(sv, grave)})` : 'The graveyard box is full',
+          onclick: () => { const i = sel.slot; if (change(`Moved ${M.nickname(r)} to the graveyard`, () => C.deposit(sv, D, i, C.boxRef(sv, grave, gs)), { full: true })) { box = grave; setTab('boxes'); select(false, grave, gs); } } }, 'Move to graveyard'));
+      }
     } else {
       row.append(h('button', { class: 'btn', type: 'button', disabled: !target, onclick: () => {
         const [b, s] = target;
@@ -1516,4 +1529,6 @@
   if (!host) $('#btnSave').textContent = 'Download';
   renderHeader();
   window.RadicalHex = { openBytes }; // used by tests
+  const boot = $('#boot'); // the loading screen: fade it out now the app is ready
+  if (boot) { boot.classList.add('done'); setTimeout(() => boot.remove(), 200); }
 })();
