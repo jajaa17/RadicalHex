@@ -410,11 +410,14 @@ body.hax-on .top { box-shadow: inset 0 -2px 0 #7b2cbf; }
 .expbar > span { display: block; height: 100%; background: var(--exp); border-radius: 3px; transition: width .25s ease; }
 
 /* Loading screen while the data scripts load (removed by app.js when it's ready) */
-.boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-content: center; justify-items: center; gap: 12px; background: var(--bg); color: var(--muted); transition: opacity .15s; }
-.boot .logo { width: 44px; height: 44px; }
-.boot-text { font-size: 13px; }
-.boot-bar { width: 120px; height: 3px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
-.boot-bar span { display: block; width: 40%; height: 100%; border-radius: 3px; background: var(--accent); animation: boot-slide 1s ease-in-out infinite alternate; }
+.boot { position: fixed; inset: 0; z-index: 1000; display: grid; place-content: center; justify-items: center; gap: 10px; background: var(--bg); color: var(--muted); transition: opacity .2s; }
+.boot-mark { position: relative; display: grid; place-items: center; width: 84px; height: 84px; margin-bottom: 8px; }
+.boot-mark::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2.5px solid var(--sunk); border-top-color: var(--accent); animation: boot-spin .8s linear infinite; }
+.boot-mark::after { content: ''; position: absolute; inset: 14px; border-radius: 50%; background: var(--accent-soft); animation: boot-pulse 1.6s ease-in-out infinite; }
+.boot .logo { position: relative; z-index: 1; width: 42px; height: 42px; animation: boot-pulse 1.6s ease-in-out infinite; }
+.boot .wordmark { font-size: 22px; color: var(--fg); }
+.boot-text { font-size: 12.5px; }
 .boot.done { opacity: 0; pointer-events: none; }
-@keyframes boot-slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-@media (prefers-reduced-motion: reduce) { .boot-bar span { animation: none; width: 100%; } }
+@keyframes boot-spin { to { transform: rotate(360deg); } }
+@keyframes boot-pulse { 50% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .boot-mark::before, .boot-mark::after, .boot .logo { animation: none; } }

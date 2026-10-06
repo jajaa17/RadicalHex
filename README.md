@@ -150,7 +150,7 @@ Play on your phone with RetroArch, then carry on on your PC (or the other way ar
 ### Fits your screen, light on memory
 - Works on anything from old 1024×768 monitors and scaled laptop screens to large displays. The layout adapts when the window is small or not maximized.
 - Only the tab you are looking at is kept in memory, and long lists only draw the rows on screen, so RadicalHex stays light even on older PCs.
-- A small splash shows while the portable .exe unpacks, then a loading screen while the Pokémon data loads, so you never stare at a blank window when it starts.
+- A loading screen shows while the Pokémon data loads, so the window is never blank when it starts.
 
 ## Using it
 
