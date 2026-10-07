@@ -422,11 +422,27 @@
     if (s & 0x1000) return 'Frostbitten';
     return '';
   }
+  // SoulGold's PC doesn't heal (OW_PC_HEAL Gen 8+): a box Pokémon keeps its status and the HP it had lost.
+  const BOX_STATUS = ['', 'Asleep', 'Asleep', 'Asleep', 'Asleep', 'Asleep', 'Poisoned', 'Burned', 'Frozen', 'Paralyzed', 'Badly poisoned', 'Frostbitten'];
+  function status(D, X, m) {
+    if (m.party) return partyStatus(m);
+    if (mon.empty(m) || mon.isEgg(m)) return '';
+    const lost = B(m, 240, 14), s = X && stats(D, X, m);
+    if (lost && s && lost >= s[0]) return 'Fainted';
+    return BOX_STATUS[B(m, 236, 4)] || '';
+  }
   const maxPp = (D, move, ups) => { const base = D.pp[move] || 0; return base + Math.floor(base * 20 * ups / 100); };
   // The game keeps HP lost and status in the box part too (SetMonData HP/STATUS), so both are updated.
   const setHp = (m, hp) => { w16(m.buf, m.off + 82, hp); SB(m, 240, 14, Math.max(0, u16(m.buf, m.off + 84) - hp)); };
   function heal(D, m) {
-    if (!m.party || mon.empty(m)) return false;
+    if (mon.empty(m) || (!m.party && mon.isEgg(m))) return false;
+    if (!m.party) { // box Pokémon: status, HP lost and PP live in the box part
+      const before = m.buf.slice(m.off, m.off + BOX_MON);
+      SB(m, 236, 4, 0); SB(m, 240, 14, 0);
+      const mv = mon.moves(m), ups = m.buf[m.off + S + 10];
+      for (let i = 0; i < 4; i++) SB(m, PP_BYTES[i] * 8, 7, mv[i] ? Math.min(127, maxPp(D, mv[i], (ups >> (2 * i)) & 3)) : 0);
+      return m.buf.subarray(m.off, m.off + BOX_MON).some((v, k) => v !== before[k]);
+    }
     const before = m.buf.slice(m.off, m.off + PARTY_MON);
     w32(m.buf, m.off + 76, 0); SB(m, 236, 4, 0); // status, and its copy in the box part
     setHp(m, u16(m.buf, m.off + 84));
@@ -437,9 +453,10 @@
 
   // ── Battle stats (the game's CalculateMonStats: hyper-trained IVs count as 31, nature from the hidden nature) ──
   const HYPER = [(S + 19) * 8 + 6, (S + 19) * 8 + 7, (S + 20) * 8 + 7, (S + 22) * 8 + 7, (S + 23) * 8 + 7, (S + 21) * 8 + 7]; // HP Atk Def SpA SpD Spe
-  function calcStats(D, X, m) {
+  const calcStats = (D, X, m) => (m.party ? stats(D, X, m) : null);
+  function stats(D, X, m) {
     const x = X && X.species[mon.species(m)];
-    if (!x || !m.party) return null;
+    if (!x) return null;
     const L = expLevel(D, m) || mon.level(m), iv = mon.ivs(m).map((v, i) => (B(m, HYPER[i], 1) ? 31 : v)), ev = mon.evs(m);
     const n = mon.nature(m), up = Math.floor(n / 5), down = n % 5;
     const natureIndex = [null, 0, 1, 3, 4, 2];
@@ -932,7 +949,7 @@
     load, serialize, build, checksum, allowedRanges,
     partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, FRIENDS_WALLPAPER, wallpaper, setWallpaper, friendsWallpaper, setFriendsWallpaper, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
-    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, STATUS,
+    dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, status, HEALS_BOX: true, STATUS,
     maxPp, calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp),

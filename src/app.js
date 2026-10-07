@@ -353,9 +353,10 @@
     const el = h('button', { class: 'slot' + (filled(ref) ? '' : ' empty') + (isSel ? ' sel' : ''), type: 'button', onclick: e => { if (filled(ref) || !quickCopy(e, party, b, s)) select(party, b, s); } });
     if (filled(ref)) {
       const sp = M.species(ref), lv = C.levelOf(D, ref), iv = M.ivs(ref);
-      el.title = `${M.nickname(ref)} — ${spName(sp)}${lv ? ', Lv ' + lv : ''}`;
-      el.append(...[sprite(sp, M.shiny(ref), size, M.isEgg(ref)),
-        party ? h('span', { class: 'pinfo' }, h('span', { class: 'pname' }, M.nickname(ref) || spName(sp)), h('span', { class: 'plv' }, lv ? 'Lv ' + lv : '', statusBadge(ref))) : null,
+      const st = statusOf(ref);
+      el.title = `${M.nickname(ref)} — ${spName(sp)}${lv ? ', Lv ' + lv : ''}${st ? ' · ' + st : ''}`;
+      el.append(...[sprite(sp, M.shiny(ref), size, M.isEgg(ref)), party ? null : statusBadge(ref, st),
+        party ? h('span', { class: 'pinfo' }, h('span', { class: 'pname' }, M.nickname(ref) || spName(sp)), h('span', { class: 'plv' }, lv ? 'Lv ' + lv : '', statusBadge(ref, st))) : null,
         h('span', { class: 'marks' }, M.shiny(ref) ? h('span', { class: 'star', title: 'Shiny' }, '★') : null,
           iv.every(v => v === 31) ? h('span', { class: 'perfect', title: 'Perfect IVs' }, '⬢') : null,
           illegal(ref) ? h('span', { class: 'illegal-mark', title: 'Illegal: open it to see why' }, '✕') : null),
@@ -550,6 +551,7 @@
         h('div', { class: 'hero-name' }, h('h2', {}, M.nickname(r) || spName(sp)), M.isEgg(r) ? null : cryButton(sp, pic)),
         h('div', { class: 'sub' }, `${spName(sp)}${D.species[sp] && D.species[sp].nat ? ' · No. ' + D.species[sp].nat : ''} · ${sel.party ? 'Party slot ' + (sel.slot + 1) : C.boxName(sv, sel.box) + ', slot ' + (sel.slot + 1)}`),
         h('div', { class: 'chips' },
+          M.isEgg(r) ? null : speciesTag(sp), statusBadge(r),
           h('span', { class: 'chip' }, lv ? 'Lv ' + lv : 'Lv ?'),
           h('span', { class: 'chip' }, ['♂', '♀', '⚲'][g]),
           h('span', { class: 'chip' }, C.NATURES[M.nature(r)]),
@@ -890,10 +892,11 @@
     catch { const t = $('#ed-showdown'); if (t) { t.select(); } status('Press Ctrl+C to copy the selected text.'); }
   }
 
-  // A party Pokémon's status as the game's short tag (PSN, TOX, BRN...), with the full name on hover.
+  // A Pokémon's status as the game's short tag (PSN, TOX, BRN...), with the full name on hover. Party Pokémon in both
+  // games; box Pokémon only in SoulGold, whose PC keeps status and lost HP (Radical Red's PC heals them).
   const STATUS_TAG = { Fainted: 'FNT', Asleep: 'SLP', 'Badly poisoned': 'TOX', Poisoned: 'PSN', Burned: 'BRN', Frozen: 'FRZ', Paralyzed: 'PAR', Frostbitten: 'FRB' };
-  function statusBadge(r) {
-    const st = r && r.party && !M.isEgg(r) ? C.partyStatus(r) : '';
+  const statusOf = r => (r && !M.empty(r) && !M.isEgg(r) ? C.status(D, X, r) : '');
+  function statusBadge(r, st = statusOf(r)) {
     return st ? h('span', { class: 'status-badge' + (st === 'Fainted' ? ' fnt' : ''), title: st }, STATUS_TAG[st] || st) : null;
   }
   function firstEmpty(startBox) {
@@ -951,6 +954,12 @@
         let i = -1;
         if (change(`Moved ${M.nickname(r) || spName(M.species(r))} to the party`, () => { i = C.withdraw(sv, D, X, r); }, { full: true })) { setTab('party'); select(true, 0, i); }
       } }, 'Move to party'), moveToBox(r));
+      if (C.HEALS_BOX && !M.isEgg(r)) { // SoulGold's PC doesn't heal, so box Pokémon can be healed here
+        const st = statusOf(r);
+        row.append(h('button', { class: 'btn', type: 'button', title: 'Restore HP, cure status conditions and refill PP', onclick: () => {
+          if (!change(`Healed ${M.nickname(r)}`, () => C.heal(D, r), { full: true, sfx: 'heal' })) status(`${M.nickname(r)} is already fully healed.`);
+        } }, st ? `Heal (${st.toLowerCase()})` : 'Heal'));
+      }
       const rel = h('button', { class: 'btn danger', type: 'button', onclick: () => {
         if (!rel.classList.contains('armed')) { rel.classList.add('armed'); rel.textContent = 'Click again to release'; return; }
         const name = M.nickname(r);

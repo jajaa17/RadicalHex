@@ -54,6 +54,7 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 ![The Party tab with held items](docs/screenshot-party.png)
 
 - Your six party Pokémon as cards with sprite, level, nature, held item, HP, status and moves. Status shows as the game's short tag (PSN, TOX, BRN, PAR, SLP, FRZ, FNT), on the party cards and next to your party in the Boxes tab; hover it for the full name
+- **SoulGold box Pokémon keep their status**: SoulGold's PC doesn't heal (Radical Red's does), so a fainted, poisoned or burned Pokémon you put in a box shows its tag on its box slot, and **Heal** works on it there too
 - **Heal**: restore HP (fainted Pokémon included), cure poison, burn, sleep, freeze and paralysis, and refill PP, for one Pokémon or the whole party
 - **Add a Pokémon straight to your party**: click an empty party slot
 - Drag party cards onto each other to change the order. **Move to box** (or dragging in the Boxes tab) puts a party Pokémon in a box, and the rest of the party moves up, like in the game. Your last Pokémon has to stay (eggs don't count)
@@ -61,6 +62,7 @@ RadicalHex opens saves from **Pokémon Radical Red 4.1** and **[Pokémon SoulGol
 
 ### Editing a Pokémon
 - Species, nickname, level, exact EXP, nature, gender, shininess, held item, Poké Ball, friendship, ability, all four moves (including Radical Red's Gen 9 moves), IVs and EVs
+- The header shows the Pokémon's **type(s)** and its **status** (PSN, TOX, BRN, PAR, SLP, FRZ, FNT) next to its level, nature, ability and ball
 - **EXP** like PKHeX: type an exact EXP and the level follows it. The editor shows the EXP range of the current level and how much is left to the next one, and **Edge** sets it 1 EXP before the next level. An EXP bar like the game's summary screen shows how far into the level it is
 - **Ability** is a dropdown like PKHeX's, listing the species' own abilities by name: ability 1, ability 2 (if it has one) and its hidden ability (H). Changing it keeps the nature, shininess and gender, like the game does when it changes an ability
 - **Origin** (like PKHeX): original trainer name, gender, trainer ID and secret ID, met location and met level, plus **Make it mine** to give it your trainer details. Changing the IDs keeps it shiny or not shiny. The met location list puts the places where that Pokémon's evolution family is found in Radical Red first. With legality checks on, the met level can't go above its level and the OT needs a name. RadicalHaX mode allows any location number and met level
