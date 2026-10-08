@@ -762,11 +762,13 @@
   const evCap = (evs, i) => (hax ? 255 : Math.max(0, Math.min(C.EV_CAP, C.EV_TOTAL - evs.reduce((a, b, k) => (k === i ? a : a + b), 0))));
   const evCapNote = (i, v) => `${C.STATS[i]} EV is ${v}, the most it can have: ${C.EV_CAP} per stat and ${C.EV_TOTAL} in total. RadicalHaX mode allows more.`;
   // onEv(i, value, capped): capped is true when the typed number was lowered to the limit.
-  function statsGrid(ivs, evs, nature, onIv, onEv, values, idp, locked = false) {
+  // base: the species' base stats (a Base column with a bar like the dex's, and the total under it).
+  function statsGrid(ivs, evs, nature, onIv, onEv, values, idp, locked = false, base = null) {
     // Nature indexes Atk/Def/Spe/SpA/SpD; grid rows are HP/Atk/Def/SpA/SpD/Spe.
     const up = Math.floor(nature / 5), down = nature % 5, rowOf = k => [1, 2, 5, 3, 4][k];
     const mark = i => (up === down ? '' : i === rowOf(up) ? ' up' : i === rowOf(down) ? ' down' : '');
-    const g = h('div', { class: 'stats' }, h('span'), h('span', { class: 'h' }, 'IV'), h('span', { class: 'h' }, 'EV'), h('span', { class: 'h' }, values ? 'Stat' : ''));
+    const g = h('div', { class: 'stats' + (base ? ' with-base' : '') }, h('span'), base ? h('span', { class: 'h', title: "The species' base stats" }, 'Base') : null,
+      h('span', { class: 'h' }, 'IV'), h('span', { class: 'h' }, 'EV'), h('span', { class: 'h' }, values ? 'Stat' : ''));
     const cur = evs.slice(), evInputs = [];
     C.STATS.forEach((s, i) => {
       // max stops the arrows at the limit; a bigger typed number is lowered to it.
@@ -777,23 +779,27 @@
         onEv(i, v, want > v);
       } });
       evInputs.push(ev);
-      g.append(
+      g.append(...[
         h('span', { class: 'name' + mark(i), title: mark(i) === ' up' ? 'Raised by nature' : mark(i) === ' down' ? 'Lowered by nature' : '' }, s),
+        base ? baseCell(base[i], `Base ${s} ${base[i]}`) : null,
         h('input', { id: `${idp}-iv${i}`, type: 'number', title: MAX_TIP, disabled: locked, min: 0, max: 31, value: ivs[i], 'aria-label': s + ' IV', onchange: e => {
           const v = Math.max(0, Math.min(31, Math.round(+e.target.value) || 0)); e.target.value = v; onIv(i, v);
         } }),
         ev,
-        h('span', { class: 'val' }, values ? values[i] : ''));
+        h('span', { class: 'val' }, values ? values[i] : '')].filter(Boolean));
     });
+    if (base) g.append(h('span', { class: 'name total' }, 'Total'), h('span', { class: 'base-total', title: 'Base stat total' }, base.reduce((a, b) => a + b, 0)));
     return g;
   }
+  const baseCell = (v, title) => h('span', { class: 'base', title }, h('b', {}, v),
+    h('span', { class: 'base-track' }, h('i', { class: 'stat-fill ' + (v >= 100 ? 'hi' : v >= 60 ? 'mid' : 'lo'), style: `width:${Math.min(100, v / 1.8)}%` })));
   function statsTab(r) {
     const ivs = M.ivs(r), evs = M.evs(r), total = evs.reduce((a, b) => a + b, 0);
     return [
       statsGrid(ivs, evs, M.nature(r),
         (i, v) => { const x = M.ivs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} IV to ${v}`, () => M.setIvs(r, x), { full: true }); },
         (i, v, capped) => { const x = M.evs(r); x[i] = v; edit(r, `Set ${C.STATS[i]} EV to ${v}`, () => M.setEvs(r, x), { full: true }); if (capped) status(evCapNote(i, v)); },
-        M.partyStats(r), 'ed', ivEvLocked()),
+        M.partyStats(r) || C.statsOf(D, X, r), 'ed', ivEvLocked(), X.species[M.species(r)] ? X.species[M.species(r)].st : null),
       ivEvLocked() ? h('div', { class: 'row' }, h('span', { class: 'note grow' }, MG_NOTE),
         mgIssues(r).length ? h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Set IVs to 31 and cleared EVs', () => { M.setIvs(r, [31, 31, 31, 31, 31, 31]); M.setEvs(r, [0, 0, 0, 0, 0, 0]); }, { full: true }) }, 'Set IVs to 31, clear EVs') : null)
       : h('div', { class: 'row' },
@@ -801,6 +807,7 @@
         h('button', { class: 'btn small', type: 'button', onclick: () => edit(r, 'Cleared EVs', () => M.setEvs(r, [0, 0, 0, 0, 0, 0]), { full: true }) }, 'Clear EVs'),
         h('span', { class: 'grow' }),
         h('span', { class: total > C.EV_TOTAL ? 'warn' : 'note' }, `EV total ${total}/${C.EV_TOTAL}${total > C.EV_TOTAL ? ' — above the normal limit' : ''}`)),
+      !M.partyStats(r) && C.statsOf(D, X, r) ? h('p', { class: 'note' }, 'The Stat column shows the stats it will have in your party, worked out from its base stats, level, nature, IVs and EVs.') : null,
       M.partyStats(r) ? h('div', { class: 'row' }, h('span', { class: 'note grow' }, 'The Stat column shows the party stats stored in the save.'),
         h('button', { class: 'btn small', type: 'button', onclick: () => {
           const before = M.partyStats(r).join();
@@ -1044,7 +1051,7 @@
         ...d.moves.map((m, i) => field(`Move ${i + 1}${i ? '' : ' (required)'}`, picker({ id: 'add-move' + i, value: m, options: d.species ? moveChoices(d.species, d.moves, i, d.level) : [], none: d.species ? 'None' : null, kind: 'moves',
           disabled: !d.species, placeholder: 'Choose a species first', onPick: id => { d.moves[i] = id; rerender(); } }))),
         d.species ? h('p', { class: 'note', style: 'grid-column:1 / -1' }, moveNote(d.species)) : null),
-      statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add', ivEvLocked()),
+      statsGrid(d.ivs, d.evs, d.nature, (i, v) => { d.ivs[i] = v; }, (i, v, capped) => { d.evs[i] = v; if (capped) status(evCapNote(i, v)); }, null, 'add', ivEvLocked(), d.species && X.species[d.species] ? X.species[d.species].st : null),
       ivEvLocked() ? h('p', { class: 'note' }, MG_NOTE) : null,
       h('div', { class: 'row', style: 'border-top:1px solid var(--line);padding-top:12px' },
         h('button', { class: 'btn primary', type: 'button', onclick: create }, sel.party ? 'Add to party' : 'Add to box'),

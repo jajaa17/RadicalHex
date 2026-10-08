@@ -950,7 +950,7 @@
     partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, FRIENDS_WALLPAPER, wallpaper, setWallpaper, friendsWallpaper, setFriendsWallpaper, mon, levelOf, setLevel, setExp, growth, baseFriendship, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, status, HEALS_BOX: true, STATUS,
-    maxPp, calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
+    maxPp, calcStats, statsOf: (D, X, m) => (m.party ? calcStats(D, X, m) : stats(D, X, m)), recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp),
     validSpecies, validItem, validMove, encodeText, decodeText,

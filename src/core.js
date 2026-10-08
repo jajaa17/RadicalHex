@@ -386,10 +386,14 @@
   }
 
   // ── Battle stats (Radical Red base stats; this formula reproduces the game's stored party stats exactly) ──
-  function calcStats(D, X, m) {
+  // Party: the level the save stores. Box Pokémon have no stats in the save, so statsOf works out the ones it will
+  // have in the party (the game's CalculateMonStats uses the level from its EXP).
+  const calcStats = (D, X, m) => (m.party ? stats(D, X, m, mon.level(m)) : null);
+  const statsOf = (D, X, m) => (m.party ? calcStats(D, X, m) : stats(D, X, m, levelOf(D, m)));
+  function stats(D, X, m, L) {
     const x = X && X.species[mon.species(m)];
-    if (!x || !m.party) return null;
-    const L = mon.level(m), iv = mon.ivs(m), ev = mon.evs(m), n = mon.nature(m), up = Math.floor(n / 5), down = n % 5;
+    if (!x || L == null) return null;
+    const iv = mon.ivs(m), ev = mon.evs(m), n = mon.nature(m), up = Math.floor(n / 5), down = n % 5;
     const natureIndex = [null, 0, 1, 3, 4, 2]; // HP Atk Def SpA SpD Spe -> nature order Atk Def Spe SpA SpD
     return x.st.map((b, i) => {
       const base = Math.floor((2 * b + iv[i] + Math.floor(ev[i] / 4)) * L / 100);
@@ -953,7 +957,7 @@
     partyCount, partyRef, boxRef, boxName, setBoxName, BOX_NAME_LEN, WALLPAPERS, WALLPAPER_SETS, wallpaper, setWallpaper, mon, levelOf, setLevel, setExp, growth, genderOf, genderRatio, defaultNickname,
     solvePid, setNatureShiny, setGender, setOtIds, makeMine, abilityName, setAbility, trainer, setMoney, setCoins, readPocket, writePocket, pocketOf,
     dex, registerOwned, clearErased, NATIONAL_DEX, createInBox, release, swap, copyToBox, copyToParty, withdraw, deposit, createInParty, moveMon, toShowdown, fromShowdown, heal, partyStatus, status: (D, X, m) => partyStatus(m), HEALS_BOX: false, STATUS,
-    maxPp, calcStats, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
+    maxPp, calcStats, statsOf, recalcStats, legality, isIllegal, expLevel, unknownData, saveLayout, convertSave, EV_CAP, EV_TOTAL, clampEvs,
     learnable: (X, sp) => learnSet(X, sp),
     levelOnly: (X, sp) => levelOnly(X, sp), // move -> [move, level, species] for moves only learned by levelling up // Set of move ids the species can know in Radical Red (what legality checks)
     validSpecies, validItem, validMove, encodeText, decodeText,
