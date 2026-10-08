@@ -139,6 +139,11 @@ h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
 .pick-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-id { font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .pick-caret { color: var(--muted); font-size: 11px; }
+/* A narrow move button keeps the move's name readable: it drops the number, then the category, then the type tag */
+.pick-move { container-type: inline-size; }
+@container (max-width: 250px) { .pick-move > .pick-id { display: none; } }
+@container (max-width: 205px) { .pick-move .mcat { display: none; } }
+@container (max-width: 175px) { .pick-move .mtag { display: none; } }
 .moves-edit { display: grid; grid-template-columns: minmax(0, 1fr) 64px 56px; gap: 6px 8px; align-items: center; }
 .moves-edit > .h { font-size: 12px; color: var(--muted); }
 .move-row { display: contents; }
@@ -168,6 +173,20 @@ h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; }
 .pop-movebar { display: flex; gap: 6px; align-items: center; padding: 6px 6px 0; flex-wrap: wrap; }
 .pop-type { height: 28px; padding: 0 6px; min-width: 0; flex: 1 1 120px; }
 .pop-cats { display: flex; gap: 3px; flex-wrap: wrap; }
+/* Move lists: power and accuracy columns, and a header that sorts (columns line up with the rows) */
+.pop-moves .pop-row .mtype { width: 66px; }
+.mpow, .macc { flex: none; font-family: var(--mono); font-size: 11.5px; text-align: right; color: var(--fg); }
+.mpow { width: 28px; } .macc { width: 36px; color: var(--muted); }
+.pop-moves .pop-row .pick-id, .pop-sort .pick-id { flex: none; width: 40px; text-align: right; }
+.pop-sort { display: flex; gap: 8px; padding: 4px 28px 3px 12px; border-bottom: 1px solid var(--line); }
+.pop-sort button { border: 0; background: none; padding: 0; font: inherit; font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.pop-sort button.grow { flex: 1; text-align: left; }
+.pop-sort .sort-type { flex: none; width: 110px; text-align: left; }
+.pop-sort button:hover { color: var(--fg); }
+.pop-sort button.on { color: var(--accent); }
+.pop-sort button[data-dir]:not([data-dir=""])::after { content: attr(data-dir); margin-left: 2px; }
+.pop-sort button.mpow, .pop-sort button.macc { color: var(--muted); }
+.pop-sort button.mpow.on, .pop-sort button.macc.on { color: var(--accent); }
 .add-row .pick { border-style: dashed; color: var(--muted); }
 .section-title { font-size: 11.5px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 700; }
 

@@ -130,9 +130,19 @@
       t ? h('span', { class: 'mtype', style: `--type:${t.c}` }, t.n) : null,
       c ? h('span', { class: 'mcat' }, c === 'Status' ? 'Status' : c.slice(0, 4) + '.') : null);
   }
+  // Power and accuracy like Showdown: "—" for status moves, moves whose damage is worked out another way (power 1)
+  // and moves that never miss (accuracy 0).
+  // (A few status moves are stored with power 1, like Pain Split; they count as having no power.)
+  const isStatus = id => X.ms && X.ms[id] === 2;
+  const movePow = id => (X.mp && X.mp[id] > 1 && !isStatus(id) ? X.mp[id] : null), moveAcc = id => (X.ma && X.ma[id] ? X.ma[id] : null);
+  function moveStats(id) {
+    if (!X.mp || !id) return null;
+    const p = movePow(id), a = moveAcc(id), pt = p ? `Power ${p}` : X.mp[id] === 1 && !isStatus(id) ? 'Power varies' : 'No power (status move)', at = a ? `Accuracy ${a}%` : 'Never misses';
+    return [h('span', { class: 'mpow', title: pt }, p || '—'), h('span', { class: 'macc', title: at }, a ? a + '%' : '—')];
+  }
   function picker({ id, value, options, none = null, placeholder = 'Choose…', icon = null, kind, onPick, bad = false, disabled = false }) {
     if (!icon && kind === 'items') icon = itemIcon;
-    const btn = h('button', { id, type: 'button', class: 'pick' + (bad === 'warn' ? ' warnb' : bad ? ' bad' : ''), 'aria-haspopup': 'listbox', disabled },
+    const btn = h('button', { id, type: 'button', class: 'pick' + (kind === 'moves' ? ' pick-move' : '') + (bad === 'warn' ? ' warnb' : bad ? ' bad' : ''), 'aria-haspopup': 'listbox', disabled, title: kind === 'moves' && value ? `${nameIn(kind, value)} · ${moveInfo(value)}${movePow(value) ? ' · Power ' + movePow(value) : ''}${moveAcc(value) ? ' · Accuracy ' + moveAcc(value) + '%' : ''}` : null },
       icon && value ? icon(value, 24) : null,
       h('span', { class: 'pick-label' + (value ? '' : ' muted') }, value ? nameIn(kind, value) : none || placeholder),
       kind === 'moves' && value ? moveTag(value) : null,
@@ -152,7 +162,8 @@
     const draw = () => list.replaceChildren(...shown.map((o, k) => {
       const row = h('div', { class: 'pop-row' + (o.id === value ? ' cur' : '') + (k === active ? ' act' : ''), role: 'option', 'aria-selected': String(o.id === value) },
         icon ? (o.id && icon(o.id, icon === itemIcon ? 24 : 32)) || h('span', { style: `width:${icon === itemIcon ? 24 : 32}px;flex:none` }) : null,
-        h('span', { class: 'grow' }, o.label), tag && o.id ? tag(o.id) : null, o.id ? h('span', { class: 'pick-id' }, '#' + o.id) : null);
+        h('span', { class: 'grow' }, o.label), tag && o.id ? tag(o.id) : null, ...(sortable ? (o.id ? moveStats(o.id) : [h('span', { class: 'mpow' }), h('span', { class: 'macc' })]) : []),
+        o.id ? h('span', { class: 'pick-id' }, '#' + o.id) : null);
       row.addEventListener('mousedown', e => { e.preventDefault(); choose(o); });
       return row;
     }));
@@ -163,12 +174,26 @@
       list.children[active].scrollIntoView({ block: 'nearest' });
     };
     let letter = '';
+    // Move lists sort like Showdown's: click a column for best first (A-Z, highest power...), again to reverse.
+    const sortable = kind === 'moves' && !!X.mp;
+    const powKey = id => (movePow(id) || (X.mp[id] === 1 && !isStatus(id) ? 0.5 : 0)), accKey = id => (X.ma[id] || 101); // never misses ranks first
+    const SORTS = { name: (a, b) => a.label.localeCompare(b.label), type: (a, b) => (moveType(a.id) ? moveType(a.id).n : '').localeCompare(moveType(b.id) ? moveType(b.id).n : '') || powKey(b.id) - powKey(a.id),
+      pow: (a, b) => powKey(b.id) - powKey(a.id), acc: (a, b) => accKey(b.id) - accKey(a.id), id: (a, b) => a.id - b.id };
+    let sortBy = '', sortDir = 1;
+    const sortBar = !sortable ? null : h('div', { class: 'pop-sort' }, [['name', 'Name', 'grow'], ['type', 'Type', 'sort-type'], ['pow', 'Pow', 'mpow'], ['acc', 'Acc', 'macc'], ['id', 'No.', 'pick-id']].map(([k, t, c]) =>
+      h('button', { type: 'button', class: c, 'data-k': k, title: `Sort by ${({ name: 'name', type: 'type', pow: 'power', acc: 'accuracy', id: 'number' })[k]} (click again to reverse)`, onmousedown: e => {
+        e.preventDefault();
+        if (sortBy === k) sortDir = -sortDir; else { sortBy = k; sortDir = 1; }
+        for (const b of sortBar.children) { b.classList.toggle('on', b.dataset.k === sortBy); b.dataset.dir = b.dataset.k === sortBy ? (sortDir > 0 ? '▾' : '▴') : ''; }
+        refilter();
+      } }, t)));
     const refilter = () => {
       const q = squash(search.value), n = search.value.replace(/\D/g, '');
       shown = all.filter(o => (!letter || (letter === '#' ? !/^[a-z]/i.test(o.label) : o.label[0].toUpperCase() === letter))
         && (!q || squash(o.label).includes(q) || (n && String(o.id) === n))
         && (!o.id || (kind === 'species' ? (mType < 0 || (X.species[o.id] && X.species[o.id].t.includes(mType)))
           : kind !== 'moves' || ((mType < 0 || X.mt[o.id] === mType) && (mCat < 0 || X.ms[o.id] === mCat)))));
+      if (sortBy) { const k = SORTS[sortBy], none = shown.filter(o => !o.id); shown = [...none, ...shown.filter(o => o.id).sort((a, b) => sortDir * k(a, b) || a.id - b.id)]; }
       active = 0; draw(); list.scrollTop = 0;
       for (const b of letters.children) b.setAttribute('aria-pressed', String(b.dataset.l === letter));
     };
@@ -201,9 +226,9 @@
         } }, c)));
       moveBar = h('div', { class: 'pop-movebar' }, typeSel, cats);
     }
-    pop = h('div', { class: 'pop' }, search, moveBar, letters, list, pager);
+    pop = h('div', { class: 'pop' + (sortable ? ' pop-moves' : '') }, search, moveBar, letters, sortBar, list, pager);
     document.body.append(pop);
-    const r = btn.getBoundingClientRect(), w = Math.max(r.width, 340), below = innerHeight - r.bottom - 12, above = r.top - 12;
+    const r = btn.getBoundingClientRect(), w = Math.min(innerWidth - 16, Math.max(r.width, sortable ? 420 : 340)), below = innerHeight - r.bottom - 12, above = r.top - 12;
     pop.style.width = w + 'px';
     pop.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
     if (below >= 260 || below >= above) { pop.style.top = r.bottom + 4 + 'px'; pop.style.maxHeight = Math.min(480, below) + 'px'; }

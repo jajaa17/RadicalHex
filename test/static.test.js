@@ -140,6 +140,12 @@ for (const [d, x, g] of [[D, X, 'Radical Red'], [SD, SX, 'SoulGold']]) {
   const tn = n => x.types.find(t => t.id === x.mt[d.moves.indexOf(n)]).n, cat = n => x.ms[d.moves.indexOf(n)];
   assert.deepStrictEqual([tn('Toxic'), tn('Razor Leaf'), tn('Flamethrower')], ['Poison', 'Grass', 'Fire'], g);
   assert.deepStrictEqual([cat('Razor Leaf'), cat('Flamethrower'), cat('Toxic')], [0, 1, 2], g);
+  // Power and accuracy: status moves have no power, damaging moves do (1 = worked out another way), accuracy 0-100.
+  assert.strictEqual(x.mp.length, d.moves.length, g + ' move power'); assert.strictEqual(x.ma.length, d.moves.length, g + ' move accuracy');
+  // (The games store a few status moves with power 1, e.g. Pain Split; Radical Red's unused slots are "Placeholder".)
+  d.moves.forEach((n, i) => { if (n && n !== 'Placeholder') { assert.ok(x.ms[i] === 2 ? x.mp[i] <= 1 : x.mp[i] >= 1 && x.mp[i] <= 250, `${g} power of ${n}`); assert.ok(x.ma[i] >= 0 && x.ma[i] <= 100, `${g} accuracy of ${n}`); } });
+  const pa = n => [x.mp[d.moves.indexOf(n)], x.ma[d.moves.indexOf(n)]];
+  assert.deepStrictEqual([pa('Earthquake'), pa('Thunder'), pa('Swift'), pa('Low Kick'), pa('Will-O-Wisp')], [[100, 100], [110, 70], [60, 0], [1, 100], [0, 85]], g);
 }
 assert.strictEqual(X.metNames[157], "Professor Oak's Lab");
 assert.ok(!Object.values(X.metNames).some(n => /Sevii Isle \d/.test(n)), 'no FireRed placeholder names');
